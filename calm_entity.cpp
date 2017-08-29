@@ -573,6 +573,51 @@ UpdateRotation(game_state *GameState, entity *Entity, r32 Value)
     }
 }
 
+inline entity *
+AddEntity(game_state *GameState, v2 Pos, entity_type EntityType) {
+    world_chunk *Chunk = GetOrCreateWorldChunk(GameState->Chunks, (s32)Pos.X, (s32)Pos.Y, 0, ChunkNull);
+    if(Chunk) { 
+        if(EntityType == Entity_Block) { Chunk->Type = ChunkBlock; }
+    } else {
+        chunk_type ChunkType = (EntityType == Entity_Block) ? ChunkBlock: ChunkLight;
+        Chunk = GetOrCreateWorldChunk(GameState->Chunks, (s32)Pos.X, (s32)Pos.Y, &GameState->MemoryArena, ChunkType);
+        Chunk->MainType = ChunkLight;
+    }
+    
+    entity *Block = InitEntity(GameState, Pos, V2(1, 1), EntityType, true);
+    AddChunkType(Block, ChunkLight);
+    if(EntityType != Entity_Philosopher) {
+        AddChunkType(Block, ChunkDark);
+    }
+    if(EntityType == Entity_Block) {
+        AddChunkType(Block, ChunkBlock);
+    }
+    
+    return Block;
+}
+
+internal entity *
+GetEntity(game_state *State, v2 Pos, entity_type Type, b32 TypesMatch = true) {
+    entity *Result = 0;
+    fori_count(State->EntityCount) {
+        entity *Entity = State->Entities + Index;
+        b32 RightType =  (TypesMatch) ? Type == Entity->Type : Type != Entity->Type;
+        if((GetGridLocation(Entity->Pos) == GetGridLocation(Pos) || GetClosestGridLocation(Entity->Pos) == GetClosestGridLocation(Pos)) && RightType) {
+            Result = Entity;
+            break;
+        }
+    }
+    return Result;
+}
+
+inline internal rect2 GetEntityInCameraSpace(entity *Entity, v2 CamPos) {
+    v2 EntityRelP = Entity->Pos - CamPos;
+    
+    rect2 EntityAsRect = Rect2MinDim(EntityRelP, Entity->Dim);
+    return EntityAsRect;
+}
+
+
 #if 0
 internal void
 SnapToNearestLine(game_state *GameState)
@@ -610,3 +655,4 @@ SnapToNearestLine(game_state *GameState)
     
 }
 #endif
+

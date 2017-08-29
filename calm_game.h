@@ -96,6 +96,7 @@ enum chunk_type {
 #include "calm_console.h"
 #include "calm_sound.h"
 #include "calm_particles.h"
+#include "calm_ui.h"
 #include "calm_entity.h"
 #include "calm_menu.h"
 
