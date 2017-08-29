@@ -10,9 +10,7 @@
 ////////////////Gameplay defines/////////
 #define END_WITH_OFFSET 1
 #define MOVE_DIAGONAL 0
-#define MOVE_VIA_MOUSE 0
 #define PLAYER_MOVE_ACTION IsDown
-#define DEFINE_MOVE_ACTION WasPressed
 #define DRAW_PLAYER_PATH 0
 #define CREATE_PHILOSOPHER 0
 #define UPDATE_CAMERA_POS 1
@@ -174,16 +172,18 @@ struct game_state
     font *Fonts;
     font *GameFont;
     font *DebugFont;
+    
     bitmap MossBlockBitmap;
     bitmap MagicianHandBitmap;
     bitmap Leaves;
-    bitmap Floor;
+    bitmap DesertGround;
     bitmap Fog;
     bitmap Man;
     bitmap Shadow;
     bitmap Arms;
     bitmap Legs;
     bitmap FootPrint;
+    bitmap Smoke;
     
     u32 FootPrintCount;
     u32 FootPrintIndex;

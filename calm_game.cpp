@@ -69,66 +69,6 @@ internal animation *GetAnimation(animation *Animations, u32 AnimationsCount,  r3
     return BestResult;
 }
 
-internal b32 
-InitializeMove(game_state *GameState, entity *Entity, v2 TargetP_r32, b32 StrictMove = false) {
-    
-    r32 MetersToWorldChunks = 1.0f / WorldChunkInMeters;
-    
-    v2i TargetP = ToV2i_floor(MetersToWorldChunks*TargetP_r32); 
-    v2i StartP = GetGridLocation(Entity->Pos);
-    
-    if(StrictMove) {
-        memory_arena *TempArena = &GameState->ScratchPad;
-        temp_memory TempMem = MarkMemory(TempArena);
-        search_info SearchInfo = {};
-        ComputeValidArea(GameState, &SearchInfo, StartP, Entity->ValidChunkTypes, Entity->ChunkTypeCount, TempArena);
-        
-        world_chunk *Chunk = GetOrCreateWorldChunk(SearchInfo.VisitedHash, TargetP.X, TargetP.Y, 0, ChunkNull);
-        if(Chunk) {
-            //Keep TargetP the same
-        } else {
-            TargetP = StartP;
-        }
-        
-        ReleaseMemory(&TempMem);
-    } else{
-        if(!IsValidChunkType(GameState, Entity, StartP)) {
-            chunk_type Types[] = {ChunkLight, ChunkDark};
-            v2i NewPos = SearchForClosestValidChunkType(GameState, StartP, Types,ArrayCount(Types));
-            Entity->Pos = WorldChunkInMeters*V2i(NewPos);
-            StartP = GetGridLocation(Entity->Pos);
-            Assert(IsValidChunkType(GameState, Entity, StartP));
-        } 
-        
-        TargetP = SearchForClosestValidPosition(GameState, TargetP, StartP, Entity->ValidChunkTypes, Entity->ChunkTypeCount);
-    }
-#if 0
-    // TODO(OLIVER): Work on this
-    if(TargetP == StartP) {
-        // TODO(OLIVER): This might not be a valid position
-        StartP = GetClosestGridLocation(Entity->Pos);
-    }
-#endif
-    
-    Entity->BeginOffsetTargetP = Entity->Pos- WorldChunkInMeters*ToV2(StartP); 
-    Entity->EndOffsetTargetP = TargetP_r32 - WorldChunkInMeters*ToV2(TargetP);
-    
-    Entity->Path.Count = 0;
-    b32 FoundTargetP =  RetrievePath(GameState, TargetP, StartP, &Entity->Path, Entity->ValidChunkTypes, Entity->ChunkTypeCount);
-    if(FoundTargetP) {
-        v2 * EndPoint = Entity->Path.Points + (Entity->Path.Count - 1);
-        v2 *StartPoint = Entity->Path.Points;
-        *StartPoint = *StartPoint + Entity->BeginOffsetTargetP;
-#if END_WITH_OFFSET
-        *EndPoint = *EndPoint + Entity->EndOffsetTargetP;
-#endif
-        Entity->VectorIndexAt = 1;
-        Entity->MoveT = 0;
-    }
-    
-    return FoundTargetP;
-}
-
 internal void
 GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRenderGroup, render_group *RenderGroup,  r32 dt)
 {
@@ -137,170 +77,11 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
     if(!GameState->IsInitialized)
     {
         
-        InitializeMemoryArena(&GameState->MemoryArena, (u8 *)Memory->GameStorage + sizeof(game_state), Memory->GameStorageSize - sizeof(game_state));
+#include "calm_startup.cpp"
         
-        GameState->PerFrameArena = SubMemoryArena(&GameState->MemoryArena, MegaBytes(2));
-        
-        GameState->ScratchPad = SubMemoryArena(&GameState->MemoryArena, MegaBytes(2));
-        
-        GameState->RenderArena = SubMemoryArena(&GameState->MemoryArena, MegaBytes(2));
-        
-        GameState->UIState = PushStruct(&GameState->MemoryArena, ui_state);
-        
-        /////////////////////////////////
-        
-        GameState->RenderConsole = true;
-        
-        GameState->Player = InitEntity(GameState, V2(-1, -1), V2(WorldChunkInMeters, WorldChunkInMeters), Entity_Player);
-        AddChunkType(GameState->Player, ChunkDark);
-        AddChunkType(GameState->Player, ChunkLight);
-        
-        GameState->Camera = InitEntity(GameState, V2(0, 0), V2(0, 0), Entity_Camera);
-        GameState->Camera->Collides = false;
-        
-        //InitEntity(GameState, V2(2, 2), V2(1, 1), Entity_Guru, true);
-        
-#if CREATE_PHILOSOPHER
-        entity *Philosopher = InitEntity(GameState, V2(2, 2), V2(1, 1), Entity_Philosopher, true);
-        Philosopher->MovePeriod = 0.4f;
-        AddChunkType(Philosopher, ChunkLight);
-#endif
-        //"Moonlight_Hall.wav","Faro.wav"
-        GameState->BackgroundMusic = LoadWavFileDEBUG(Memory, "podcast1.wav", &GameState->MemoryArena);
-        //PushSound(GameState, &GameState->BackgroundMusic, 1.0, false);
-        GameState->FootstepsSound[0] = LoadWavFileDEBUG(Memory, "foot_steps_sand1.wav", &GameState->MemoryArena);
-        
-        GameState->FootstepsSound[1] = LoadWavFileDEBUG(Memory, "foot_steps_sand2.wav", &GameState->MemoryArena);
-        
-        
-        GameState->MossBlockBitmap = LoadBitmap(Memory, 0, "moss_block1.bmp");
-        GameState->MagicianHandBitmap = LoadBitmap(Memory, 0, "magician_hand.bmp");
-        
-        GameState->LanternAnimationCount = 0;
-        
-        char *FileNames[16] = {"lantern_man/lm_run_left_l.bmp",
-            "lantern_man/lm_run_left_r.bmp"};
-        
-        InitAnimation(&GameState->LanternManAnimations[GameState->LanternAnimationCount++], Memory, FileNames, 2, PI32, -0.3f);
-        
-        FileNames[0] = "lantern_man/lm_stand_left.bmp";
-        
-        InitAnimation(&GameState->LanternManAnimations[GameState->LanternAnimationCount++], Memory, FileNames, 1, PI32, -0.01f );
-        
-        FileNames[0] = "lantern_man/lm_run_right_l.bmp";
-        FileNames[1] = "lantern_man/lm_run_right_r.bmp";
-        
-        InitAnimation(&GameState->LanternManAnimations[GameState->LanternAnimationCount++], Memory, FileNames, 2, 0, 0.3f);
-        
-        FileNames[0] = "lantern_man/lm_stand_right.bmp";
-        
-        InitAnimation(&GameState->LanternManAnimations[GameState->LanternAnimationCount++], Memory, FileNames, 1, 0, 0.01f);
-        
-        FileNames[0] = "lantern_man/lm_front.bmp";
-        
-        InitAnimation(&GameState->LanternManAnimations[GameState->LanternAnimationCount++], Memory, FileNames, 1, PI32*1.5f, 0);
-        
-        GameState->GameMode = PLAY_MODE;
-        
-        GameState->Fonts = LoadFontFile("fonts.clm", Memory, &GameState->MemoryArena);
-        
-        font_quality_value Qualities[FontQuality_Count] = {};
-        Qualities[FontQuality_Debug] = InitFontQualityValue(1.0f);
-        Qualities[FontQuality_Size] = InitFontQualityValue(1.0f);
-        
-        //GameState->Font = FindFont(GameState->Fonts, Qualities);
-        GameState->DebugFont = FindFontByName(GameState->Fonts, "Liberation Mono", Qualities);
-        GameState->GameFont = FindFontByName(GameState->Fonts, "Karmina Regular", Qualities);
-        Memory->DebugFont = GameState->DebugFont;
-        InitConsole(&DebugConsole, GameState->DebugFont, 0, 2.0f, &GameState->MemoryArena);
-        
-        
-        GameState->PauseMenu.Timer.Period = 2.0f;
-        GameState->PauseMenu.Font = GameState->GameFont;
-        GameState->GameOverMenu.Timer.Period = 2.0f;
-        GameState->GameOverMenu.Font = GameState->GameFont;
-        
-        GameState->FramePeriod = 0.2f;
-        GameState->FrameIndex = 0;
-        GameState->FrameTime = 0;
-        GameState->CurrentAnimation = &GameState->LanternManAnimations[0];
-        
-        v2 Pos = {};
-        fori_count(10) {
-            do {
-                Pos.X = (r32)RandomBetween(&GameState->GeneralEntropy, -10, 10);
-                Pos.Y = (r32)RandomBetween(&GameState->GeneralEntropy, -10, 10);
-            } while(Pos == GameState->Player->Pos 
-                    #if CREATE_PHILOSOPHER
-                    || Pos == Philosopher->Pos
-                    #endif
-                    );
-            AddEntity(GameState, Pos, Entity_Block);
-        }
-        
-        // NOTE(OLIVER): Create Board
-        
-        // NOTE(OLIVER): Make sure player is on a valid tile
-        v2i PlayerPos = GetGridLocation(GameState->Player->Pos);
-        GetOrCreateWorldChunk(GameState->Chunks, PlayerPos.X, PlayerPos.Y, &GameState->MemoryArena, ChunkDark);
-#if CREATE_PHILOSOPHER
-        v2i PhilosopherPos = GetGridLocation(Philosopher->Pos);
-        GetOrCreateWorldChunk(GameState->Chunks, PhilosopherPos.X, PhilosopherPos.Y, &GameState->MemoryArena, ChunkLight);
-#endif
-        ///////////////
-#if 1
-        ui_element_settings UISet = {};
-        UISet.Pos = V2(0.7f*(r32)Buffer->Width, (r32)Buffer->Height);
-        UISet.Name = 0;
-        
-        PushUIElement(GameState->UIState, UI_Moveable,  UISet);
-        {
-            UISet.Type = UISet.Name = "Save Level";
-            AddUIElement(GameState->UIState, UI_Button, UISet);
-        }
-        PopUIElement(GameState->UIState);
-        
-        UISet= {};
-        UISet.Pos = V2(0, (r32)Buffer->Height);
-        
-        PushUIElement(GameState->UIState, UI_Moveable,  UISet);
-        {
-            PushUIElement(GameState->UIState, UI_DropDownBoxParent, UISet);
-            {
-                for(u32 TypeI = 0; TypeI < ArrayCount(entity_type_Values); ++TypeI) {
-                    UISet.Name = entity_type_Names[TypeI];
-                    UISet.EnumArray.Array = entity_type_Values;
-                    UISet.EnumArray.Index = TypeI;
-                    UISet.EnumArray.Type = entity_type_Names[ArrayCount(entity_type_Names) - 1];
-                    UISet.ValueLinkedTo = &GameState->UIState->InitInfo;
-                    
-                    AddUIElement(GameState->UIState, UI_DropDownBox, UISet);
-                }
-                
-                for(u32 TypeI = 0; TypeI < ArrayCount(chunk_type_Values); ++TypeI) {
-                    UISet.Name = chunk_type_Names[TypeI];
-                    UISet.EnumArray.Array = chunk_type_Values;
-                    UISet.EnumArray.Index = TypeI;
-                    UISet.EnumArray.Type = chunk_type_Names[ArrayCount(chunk_type_Names) - 1];
-                    UISet.ValueLinkedTo = &GameState->UIState->InitInfo;
-                    
-                    AddUIElement(GameState->UIState, UI_DropDownBox, UISet);
-                }
-            }
-            PopUIElement(GameState->UIState);
-            
-            UISet.ValueLinkedTo = &GameState->UIState->ControlCamera;
-            UISet.Name = "Control Camera";
-            AddUIElement(GameState->UIState, UI_CheckBox, UISet);
-            
-            UISet.ValueLinkedTo = &GameState->UIState->GamePaused;
-            UISet.Name = "Pause Game";
-            AddUIElement(GameState->UIState, UI_CheckBox, UISet);
-        }
-        PopUIElement(GameState->UIState);
-#endif
         GameState->IsInitialized = true;
     }
+    
     EmptyMemoryArena(&GameState->RenderArena);
     InitRenderGroup(OrthoRenderGroup, Buffer, &GameState->RenderArena, MegaBytes(1), V2(1, 1), V2(0, 0), V2(1, 1));
     
@@ -446,118 +227,30 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                 
             } else {
                 
-                v2i PlayerGridP = {};
                 v2i PlayerMove = {};
                 
-                if(CanMove(Player)) {  // NOTE(Oliver): This is to stop the player moving diagonal.  
-                    if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Left]))
-                    {
-                        PlayerMove = V2int(-1, 0);
-                        PlayerGridP = GetGridLocation(Player->Pos);
-                    }
-                    else if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Right]))
-                    {
-                        PlayerMove = V2int(1, 0);
-                        PlayerGridP = GetClosestGridLocation(Player->Pos);
-                    }
-                    else if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Down]))
-                    {
-                        PlayerMove = V2int(0, -1);
-                        PlayerGridP = GetGridLocation(Player->Pos);
-                    }
-                    else if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Up]))
-                    {
-                        PlayerMove = V2int(0, 1);
-                        PlayerGridP = GetClosestGridLocation(Player->Pos);
-                    }
-                }
                 
-                if(DEFINE_MOVE_ACTION(Memory->GameButtons[Button_Space]))
+                if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Left]))
                 {
-                    if(GameState->PlayerIsSettingPath) {
-                        PlayerGridP = GetGridLocation(Player->Pos);
-                        entity *Entity = InitEntity(GameState, V2i(PlayerGridP), V2(1, 1), Entity_Dropper);
-                        AddChunkType(Entity, ChunkLight);
-                        AddChunkType(Entity, ChunkDark);
-                        Entity->VectorIndexAt = 1;
-                        Entity->Path = GameState->PathToSet;
-                        GameState->PlayerIsSettingPath = false;
-                    } else {
-                        GameState->PlayerIsSettingPath = true;
-                        GameState->PathToSet.Count = 0;
-                        v2 PosToAdd = V2i(GetGridLocation(Player->Pos));
-                        Assert(IsValidGridPosition(GameState, PosToAdd));
-                        AddToPath(&GameState->PathToSet, PosToAdd);
-                    }
-                    
+                    PlayerMove = V2int(-1, 0);
                 }
-                
-                if(GameState->PlayerIsSettingPath) {
-                    v2i DefineMove = {};
-                    if(DEFINE_MOVE_ACTION(Memory->GameButtons[Button_Left]))
-                    {
-                        DefineMove = V2int(-1, 0);
-                    }
-                    else if(DEFINE_MOVE_ACTION(Memory->GameButtons[Button_Right]))
-                    {
-                        DefineMove = V2int(1, 0);
-                        
-                    }
-                    else if(DEFINE_MOVE_ACTION(Memory->GameButtons[Button_Down]))
-                    {
-                        DefineMove = V2int(0, -1);
-                        
-                    }
-                    else if(DEFINE_MOVE_ACTION(Memory->GameButtons[Button_Up]))
-                    {
-                        DefineMove = V2int(0, 1);
-                        
-                    }
-                    
-                    PlayerMove = {};
-                    v2 LastMove = V2i(GetGridLocation(Player->Pos));
-                    
-                    if(DefineMove != V2int(0, 0)) {
-                        if(GameState->PathToSet.Count > 0) {
-                            LastMove =  GameState->PathToSet.Points[GameState->PathToSet.Count - 1];
-                            v2 NewMove = LastMove + V2i(DefineMove);
-                            if(IsValidGridPosition(GameState, NewMove)) {
-                                AddToPath(&GameState->PathToSet, NewMove);
-                            } else {
-                                //Abort? I think this is a gameplay decision,and later code will handle whether it is valid or not.
-                            }
-                            
-                        } 
-                    }
+                if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Right]))
+                {
+                    PlayerMove = V2int(1, 0);
+                }
+                if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Down]))
+                {
+                    PlayerMove = V2int(0, -1);
+                }
+                if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Up]))
+                {
+                    PlayerMove = V2int(0, 1);
                 }
                 
                 if(GameState->UIState->ControlCamera || GameState->UIState->GamePaused) {
                     GlobalPlayerMove = PlayerMove;
                     PlayerMove = {};
                 }
-                
-#if !MOVE_VIA_MOUSE 
-                if(PlayerMove != V2int(0, 0)) {
-                    v2i GridTargetPos = (PlayerGridP + PlayerMove);
-                    world_chunk *Chunk = GetOrCreateWorldChunk(GameState->Chunks, GridTargetPos.X, GridTargetPos.Y, 0, ChunkNull);
-                    
-                    // NOTE(OLIVER): This is where the player moves the block...
-                    if(Chunk && Chunk->Type == ChunkBlock) {
-                        v2i BlockTargetPos = GridTargetPos + PlayerMove;
-                        world_chunk *NextChunk = GetOrCreateWorldChunk(GameState->Chunks, BlockTargetPos.X, BlockTargetPos.Y, 0, ChunkNull);
-                        entity *Block = GetEntity(GameState, WorldChunkInMeters*V2i(GridTargetPos), Entity_Block);
-                        Assert(Block && Block->Type == Entity_Block);
-                        if(NextChunk && IsValidType(NextChunk, Block->ValidChunkTypes, Block->ChunkTypeCount) && !GetEntity(GameState, V2i(BlockTargetPos), Entity_Philosopher, false)) {
-                            Chunk->Type = Chunk->MainType;
-                            NextChunk->Type = ChunkBlock;
-                            InitializeMove(GameState, Block, WorldChunkInMeters*V2i(BlockTargetPos));
-                            
-                        }
-                    }
-                    
-                    InitializeMove(GameState, Player, WorldChunkInMeters*V2i(GridTargetPos), true);
-                }
-#endif
             }
             
             r32 Qualities[ANIMATE_QUALITY_COUNT] = {};
@@ -583,8 +276,6 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
             rect2 BufferRect = Rect2(0, 0, (r32)Buffer->Width, (r32)Buffer->Height);
             
             entity *Camera = GameState->Camera;
-            
-            
             
 #if UPDATE_CAMERA_POS
             r32 DragFactor = 0.2f;
@@ -612,12 +303,13 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                     
                     v2i GridP = GetGridLocation(V2i(X, Y));
                     world_chunk *Chunk = GetOrCreateWorldChunk(GameState->Chunks, GridP.X, GridP.Y, 0, ChunkNull);
+                    
+                    r32 MinX = (X*WorldChunkInMeters) - Camera->Pos.X;
+                    r32 MinY = (Y*WorldChunkInMeters) - Camera->Pos.Y;
+                    rect2 Rect = Rect2(MinX, MinY, MinX + WorldChunkInMeters,
+                                       MinY + WorldChunkInMeters);
+                    
                     if(Chunk) {
-                        
-                        r32 MinX = (Chunk->X*WorldChunkInMeters) - Camera->Pos.X;
-                        r32 MinY = (Chunk->Y*WorldChunkInMeters) - Camera->Pos.Y;
-                        rect2 Rect = Rect2(MinX, MinY, MinX + WorldChunkInMeters,
-                                           MinY + WorldChunkInMeters);
                         
                         v4 Color01 = {0, 0, 0, 1};
                         switch (Chunk->Type) {

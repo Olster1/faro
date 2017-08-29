@@ -10,10 +10,10 @@ REM 32-bit build
 
 REM cl %CommonCompilerFlags% ..\faro\code\meta_generator.cpp -Fmcalm_win32.map /link %CommonLinkerFlags%
 
-pushd ..\mind_man\code
+pushd ..\faro\code
 REM ..\..\..\build_extra_projects\meta_generator.exe
 popd
 
-cl %CommonCompilerFlags% ..\faro\code\calm_win32.cpp -Fmcalm_win32.map /link %CommonLinkerFlags%
+cl %CommonCompilerFlags% ..\faro\code\calm_win32.cpp -Fefaro -Fmcalm_win32.map /link %CommonLinkerFlags%
 popd
 

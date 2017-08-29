@@ -28,6 +28,17 @@ internal world_chunk *GetOrCreateWorldChunk(world_chunk **Chunks, s32 X, s32 Y, 
     return Result;
 }
 
+inline void AddWorldChunks(game_state *GameState, s32 Min, s32 Max, chunk_type ChunkType) {
+    for(s32 x = Min; x < Max; x++) {
+        for(s32 y = Min; y < Max; y++) {
+            world_chunk *Result = GetOrCreateWorldChunk(GameState->Chunks, x, y, &GameState->MemoryArena, ChunkType);
+            Assert(Result);
+        }
+    }
+    
+}
+
+
 inline void AddWorldChunks(game_state *GameState, u32 Count, s32 Min, s32 Max, chunk_type ChunkType) {
     
     fori_count(Count) {

@@ -46,8 +46,8 @@ internal b32 SaveLevelToDisk(game_memory *Memory, game_state *GameState, char *F
 }
 
 
-internal void LoadAndReadLevelFile(game_state *GameState, game_memory *Memory, render_group *RenderGroup) {
-    
+internal b32 LoadAndReadLevelFile(game_state *GameState, game_memory *Memory) {
+    b32 WasSuccessful = true;
     char *FileName = "level1.omm";
     game_file_handle Handle =  Memory->PlatformBeginFile(FileName);
     if(!Handle.HasErrors) {
@@ -122,8 +122,10 @@ internal void LoadAndReadLevelFile(game_state *GameState, game_memory *Memory, r
         ReleaseMemory(&TempMem);
         Memory->PlatformEndFile(Handle);
     } else {
-        AddWorldChunks(GameState, 200, 0, 10, ChunkLight);
-        AddWorldChunks(GameState, 200, -10, 0, ChunkDark);
+        WasSuccessful = false;
+        
+        
     }
+    return WasSuccessful;
     
 }

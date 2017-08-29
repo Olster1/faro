@@ -348,3 +348,57 @@ internal b32 IsPartOfPath(s32 X, s32 Y, path_nodes *Path) {
     
     return Result;
 }
+
+
+internal b32 
+InitializeMove(game_state *GameState, entity *Entity, v2 TargetP_r32, b32 StrictMove = false) {
+    
+    r32 MetersToWorldChunks = 1.0f / WorldChunkInMeters;
+    
+    v2i TargetP = ToV2i_floor(MetersToWorldChunks*TargetP_r32); 
+    v2i StartP = GetGridLocation(Entity->Pos);
+    
+    if(StrictMove) {
+        memory_arena *TempArena = &GameState->ScratchPad;
+        temp_memory TempMem = MarkMemory(TempArena);
+        search_info SearchInfo = {};
+        ComputeValidArea(GameState, &SearchInfo, StartP, Entity->ValidChunkTypes, Entity->ChunkTypeCount, TempArena);
+        
+        world_chunk *Chunk = GetOrCreateWorldChunk(SearchInfo.VisitedHash, TargetP.X, TargetP.Y, 0, ChunkNull);
+        if(Chunk) {
+            //Keep TargetP the same
+        } else {
+            TargetP = StartP;
+        }
+        
+        ReleaseMemory(&TempMem);
+    } else{
+        if(!IsValidChunkType(GameState, Entity, StartP)) {
+            chunk_type Types[] = {ChunkLight, ChunkDark};
+            v2i NewPos = SearchForClosestValidChunkType(GameState, StartP, Types,ArrayCount(Types));
+            Entity->Pos = WorldChunkInMeters*V2i(NewPos);
+            StartP = GetGridLocation(Entity->Pos);
+            Assert(IsValidChunkType(GameState, Entity, StartP));
+        } 
+        
+        TargetP = SearchForClosestValidPosition(GameState, TargetP, StartP, Entity->ValidChunkTypes, Entity->ChunkTypeCount);
+    }
+    
+    Entity->BeginOffsetTargetP = Entity->Pos- WorldChunkInMeters*ToV2(StartP); 
+    Entity->EndOffsetTargetP = TargetP_r32 - WorldChunkInMeters*ToV2(TargetP);
+    
+    Entity->Path.Count = 0;
+    b32 FoundTargetP =  RetrievePath(GameState, TargetP, StartP, &Entity->Path, Entity->ValidChunkTypes, Entity->ChunkTypeCount);
+    if(FoundTargetP) {
+        v2 * EndPoint = Entity->Path.Points + (Entity->Path.Count - 1);
+        v2 *StartPoint = Entity->Path.Points;
+        *StartPoint = *StartPoint + Entity->BeginOffsetTargetP;
+#if END_WITH_OFFSET
+        *EndPoint = *EndPoint + Entity->EndOffsetTargetP;
+#endif
+        Entity->VectorIndexAt = 1;
+        Entity->MoveT = 0;
+    }
+    
+    return FoundTargetP;
+}

@@ -342,10 +342,11 @@ PushSize(memory_arena *Arena, size_t Size, b32 Clear = true)
 }
 
 
-inline void InitializeMemoryArena(memory_arena *Arena, void *Memory, size_t Size) {
+inline void InitializeMemoryArena(memory_arena *Arena, void *Memory, s32 Size) {
     Arena->Base = (u8 *)Memory;
     Arena->CurrentSize = 0;
     Arena->TotalSize = Size;
+    Assert(Size > 0);
 } 
 
 inline memory_arena SubMemoryArena(memory_arena *Arena, size_t Size) {
@@ -407,6 +408,7 @@ ReleaseMemory(temp_memory *TempMem)
 inline void 
 EmptyMemoryArena(memory_arena *Arena) {
     Assert(Arena->TempMemCount == 0);
+    ClearMemory(Arena->Base, (u32)(Arena->CurrentSize));
     Arena->CurrentSize = 0;
 }
 

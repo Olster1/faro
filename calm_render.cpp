@@ -550,6 +550,13 @@ internal void InitRenderGroup(render_group *Group, bitmap *Buffer,memory_arena *
     Group->Transform.Scale = Scale; 
     Group->Transform.Offset = Offset;
     Group->Transform.Rotation = Rotation;
+    Group->IsInitialized = true;
+}
+
+internal void EndRenderGroup(render_group *Group) {
+    ReleaseMemory(&Group->TempMem);
+    Group->IsInitialized = false;
+    
 }
 
 void RenderGroupToOutput(render_group *Group) {
@@ -595,5 +602,5 @@ void RenderGroupToOutput(render_group *Group) {
         Assert((At - Base) >= 0);
     }
     
-    ReleaseMemory(&Group->TempMem);
+    EndRenderGroup(Group);
 }

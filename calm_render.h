@@ -67,7 +67,7 @@ struct render_group
     
     temp_memory TempMem;
     memory_arena Arena;
-    
+    b32 IsInitialized;
 };
 
 void PushBitmapScale(render_group *Group, v3 Pos, bitmap *Bitmap, r32 Scale, rect2 ClipRect, v4 Color);
