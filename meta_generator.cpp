@@ -1181,7 +1181,7 @@ static FILE *OpenFileHandle(char *FileName) {
 
 int main(int argc, char* argv[])
 {
-    char *FileNames[] = {"calm_win32.cpp", "calm_entity.h", "calm_ui.cpp", "calm_game.h"}; //change this to read all .cpp files
+    char *FileNames[] = {"calm_win32.cpp", "calm_entity.h", "calm_ui.h", "calm_ui.cpp", "calm_game.h"}; //change this to read all .cpp files
     
     tokenizer Tokenizer = {};
     

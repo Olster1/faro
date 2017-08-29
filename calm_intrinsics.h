@@ -31,6 +31,13 @@ Sin(r32 Value)
 }
 
 inline r32
+ATan2(r32 X, r32 Y)
+{
+    r32 Result = (r32)atan2(Y, X);
+    return Result;
+}
+
+inline r32
 SqrRoot(r32 Value)
 {
     r32 Result = (r32)sqrt(Value);

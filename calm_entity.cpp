@@ -405,12 +405,6 @@ inline void AddChunkType(entity *Entity, chunk_type Type) {
     Entity->ValidChunkTypes[Entity->ChunkTypeCount++] = Type;
 }
 
-inline void AddChunkTypeToChunkChanger(entity *Entity, chunk_type Type) {
-    Assert(Entity->Type == Entity_Chunk_Changer);
-    Assert(Entity->ChunkListCount < ArrayCount(Entity->ChunkList));
-    Entity->ChunkList[Entity->ChunkListCount++] = Type;
-}
-
 inline void EndPath(entity *Entity) {
     if(Entity->Path.Count > 0) {
         Assert(Entity->Path.Count > Entity->VectorIndexAt);
@@ -419,7 +413,7 @@ inline void EndPath(entity *Entity) {
 }
 
 inline entity *
-InitEntity(game_state *GameState, v2 Pos, v2 Dim, entity_type Type, b32 IsInteractable = false) {
+InitEntity(game_state *GameState, v2 Pos, v2 Dim, entity_type Type, b32 Collides = true) {
     Assert(GameState->EntityCount < ArrayCount(GameState->Entities));
     
     u32 EntityIndex = GameState->EntityCount++;
@@ -436,27 +430,26 @@ InitEntity(game_state *GameState, v2 Pos, v2 Dim, entity_type Type, b32 IsIntera
     Entity->Rotation = Mat2();
     Entity->FacingDirection = 1;
     Entity->Type = Type;
-    Entity->IsInteractable = IsInteractable;
+    Entity->Collides = Collides;
     Entity->TriggerAction = false;
     Entity->LifeSpan = 10.0f;
-    Entity->ChunkTimer = {};
-    Entity->ChunkTimer.Period = 1.0f;
+    Entity->InverseWeight = 1.0f / 5.0f; //5kg
     
     //Entity->LastMoves;;
     Entity->LastMoveAt = 0;
     Entity->LastSearchPos = V2int(MAX_S32, MAX_S32); //Invalid postion
-    /*
+    
     particle_system_settings Set = InitParticlesSettings();
     Set.LifeSpan = 0.9f;
     InitParticleSystem(&Entity->ParticleSystem, &Set, 12);
-    */
-#if INTERNAL_BUILD
-    /*
-    ui_element_settings Set = {};
-    Set.ValueLinkedTo = Entity;
     
-    AddUIElement(GameState->UIState, UI_Entity, Set);
-    */
+#if INTERNAL_BUILD
+    
+    ui_element_settings ElmSet = {};
+    ElmSet.ValueLinkedTo = Entity;
+    
+    AddUIElement(GameState->UIState, UI_Entity, ElmSet);
+    
 #endif
     
     return Entity;
@@ -499,7 +492,7 @@ RemoveEntityUIElement(ui_state *UIState, entity *Entity) {
         }
     }
     
-    //Assert(WasRemoved);
+    Assert(WasRemoved);
     return WasRemoved;
     
 }
@@ -520,7 +513,7 @@ internal inline b32 RemoveEntity(game_state *GameState, u32 EntityIndex) {
         //
         
 #if INTERNAL_BUILD
-        //RemoveEntityUIElement(GameState->UIState, EntityB);
+        RemoveEntityUIElement(GameState->UIState, EntityB);
 #endif
         
         WasRemoved = true;
@@ -529,18 +522,6 @@ internal inline b32 RemoveEntity(game_state *GameState, u32 EntityIndex) {
     
     return WasRemoved;
     
-}
-
-inline b32 ContainsChunkType(entity *Entity, chunk_type ChunkType) {
-    
-    b32 Result = false;
-    fori_count(Entity->ChunkTypeCount) {
-        if(Entity->ValidChunkTypes[Index] == ChunkType) {
-            Result = true;
-            break;
-        }
-    }
-    return Result;
 }
 
 internal void

@@ -7,6 +7,10 @@
             GameState->DesertGround = LoadBitmap(Memory, 0, "desert.bmp");
             GameState->Man = LoadBitmap(Memory, 0, "headandshoulders.bmp");
             GameState->Shadow = LoadBitmap(Memory, 0, "faroshadow.bmp");
+            GameState->Shadow.AlignPercent = V2(1, 1);
             GameState->Legs = LoadBitmap(Memory, 0, "legs.bmp");
             GameState->Arms = LoadBitmap(Memory, 0, "arms.bmp");
+            GameState->House = LoadBitmap(Memory, 0, "house1.bmp");
+            GameState->HouseShadow = LoadBitmap(Memory, 0, "houseshadow.bmp");
+            GameState->HouseShadow.AlignPercent = V2(0.8f, 0.75f);
             

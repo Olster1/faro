@@ -6,9 +6,7 @@ enum entity_type
     Entity_Guru, 
     Entity_Philosopher,
     Entity_Player,
-    Entity_Chunk_Changer,
     Entity_Camera,
-    Entity_Dropper,
     Entity_Home,
     
     ///////
@@ -36,17 +34,11 @@ struct path_nodes {
 
 struct entity
 {
+    entity_type Type;
+    
     v2 Pos;
     v2 Velocity;
     v2 Dim;
-    
-    // NOTE(Oliver): This is for the chunk changer
-    u32 ChunkAt;
-    u32 ChunkListCount;
-    chunk_type ChunkList[16];
-    timer ChunkTimer; 
-    b32 LoopChunks;
-    //
     
     u32 WalkSoundAt; //For Sound effects
     
@@ -87,13 +79,14 @@ struct entity
     r32 FacingDirection;    
     
     b32 TriggerAction;
-    b32 IsInteractable;
-    entity_type Type;
     b32 Moves;
     
     r32 InverseWeight;
     b32 Collides; 
     u32 Index;
+    
+    particle_system ParticleSystem;
+    
 };
 
 struct line
@@ -101,30 +94,3 @@ struct line
     v2 Begin;
     v2 End;
 };
-
-#if 0
-// NOTE(OLIVER): This is old movement code for the player. I probably won't need it in the future but just in case. 13/2/17
-#if MOVE_VIA_ACCELERATION
-v2 RelVector = Entity->Pos - Entity->StartPos; 
-
-r32 TValue = Length(RelVector) / Length(Entity->TargetPos - Entity->StartPos); 
-
-//PrintToConsole(&GameState->Console, );
-r32 AccelFactor = 0;
-if(TValue < 0.5f) {
-    AccelFactor= SineousLerp0To1(500, TValue, 300);
-} else {
-    AccelFactor = SineousLerp0To1(300, TValue, 100);
-}
-
-Acceleration = AccelFactor*Normal(Entity->TargetPos - Entity->Pos);
-UpdateEntityPositionWithImpulse(GameState,Entity, dt, Acceleration);
-if(TValue >= 1.0f) {
-    Entity->Pos = Entity->TargetPos;
-    Entity->Velocity = {};
-}
-#else
-//UpdateEntityPosViaFunction(Entity, dt);
-#endif
-
-#endif

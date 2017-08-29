@@ -81,6 +81,12 @@ Mat2()
     return Result;
 }
 
+inline r32 
+Mat2ToAngle(mat2 M) { 
+    r32 Result = ATan2(M.E[0][0], M.E[0][1]);
+    return Result;
+}
+
 inline v2
 V2(r32 X, r32 Y)
 {

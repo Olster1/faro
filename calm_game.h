@@ -184,6 +184,8 @@ struct game_state
     bitmap Legs;
     bitmap FootPrint;
     bitmap Smoke;
+    bitmap HouseShadow;
+    bitmap House;
     
     u32 FootPrintCount;
     u32 FootPrintIndex;

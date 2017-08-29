@@ -14,9 +14,12 @@
 #include "calm_console.cpp"
 #include "calm_chunks.cpp"
 #include "calm_io.cpp"
-#include "calm_entity.cpp"
+#include "calm_particles.cpp"
 #include "calm_ai.cpp"
 #include "calm_ui.cpp"
+#include "calm_entity.cpp"
+#include "calm_ui_main.cpp"
+
 #include "calm_meta.h"
 
 
@@ -147,7 +150,8 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
             
             v2 MouseP_PerspectiveSpace = InverseTransform(&RenderGroup->Transform, V2(Memory->MouseX, Memory->MouseY));
             v2 MouseP_OrthoSpace = InverseTransform(&OrthoRenderGroup->Transform, V2(Memory->MouseX, Memory->MouseY));
-            v2i GlobalPlayerMove = {};
+            v2 GlobalPlayerMove = {};
+            v2 PlayerMove = {};
             
             if(WasPressed(Memory->GameButtons[Button_Escape]))
             {
@@ -227,24 +231,21 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                 
             } else {
                 
-                v2i PlayerMove = {};
-                
-                
                 if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Left]))
                 {
-                    PlayerMove = V2int(-1, 0);
+                    PlayerMove = V2(-1, 0);
                 }
                 if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Right]))
                 {
-                    PlayerMove = V2int(1, 0);
+                    PlayerMove = V2(1, 0);
                 }
                 if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Down]))
                 {
-                    PlayerMove = V2int(0, -1);
+                    PlayerMove = V2(0, -1);
                 }
                 if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Up]))
                 {
-                    PlayerMove = V2int(0, 1);
+                    PlayerMove = V2(0, 1);
                 }
                 
                 if(GameState->UIState->ControlCamera || GameState->UIState->GamePaused) {
@@ -281,7 +282,7 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
             r32 DragFactor = 0.2f;
             v2 Acceleration = Camera->AccelFromLastFrame;
             if(GameState->UIState->ControlCamera) { //maybe turn these into defines like on Handmade Hero?
-                Acceleration = 400*V2i(GlobalPlayerMove);
+                Acceleration = 400*GlobalPlayerMove;
             } 
             Camera->Pos = dt*dt*Acceleration + dt*Camera->Velocity + Camera->Pos;
             Camera->Velocity = Camera->Velocity + dt*Acceleration - DragFactor*Camera->Velocity;
@@ -330,15 +331,9 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                             }
                         }
                         
-#if DRAW_PLAYER_PATH
-                        if(IsPartOfPath(Chunk->X, Chunk->Y, &Player->Path)) {
-                            Color01 = {1, 0, 1, 1};
-                            PushRect(RenderGroup, Rect, 1, Color01);
-                        } else 
-#endif
-                        {
-                            PushRect(RenderGroup, Rect, 1, Color01);
-                        }
+                        //PushRect(RenderGroup, Rect, 1, Color01);
+                        PushBitmap(RenderGroup, V3(MinX, MinY, 1), &GameState->DesertGround, 1.0f, BufferRect);
+                        
                     }
                 }
             }
@@ -364,7 +359,9 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                             if(!GameState->UIState->GamePaused) {
                                 /////////NOTE(Oliver): Update Player's postion/////////////// 
                                 
-                                b32 DidMove = UpdateEntityPositionViaFunction(GameState, Entity, dt);
+                                v2 Accel = 300.0f*PlayerMove;
+                                UpdateEntityPositionWithImpulse(GameState, Entity, dt, Accel);
+                                b32 DidMove = false;
                                 if(DidMove) {
                                     PushSound(GameState, &GameState->FootstepsSound[Entity->WalkSoundAt++], 1.0, false);
                                     if(Entity->WalkSoundAt >= 2) {
@@ -390,145 +387,18 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                                             GameState->FrameIndex = 0;
                                         }
                                     }
-                                    
-                                    //PushBitmap(RenderGroup, V3(EntityRelP, 1), &CurrentBitmap,  BufferRect);
                                 }
+                                /////////////////////////////
                             }
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Shadow, 1.0f, BufferRect);
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Man, 1.0f, BufferRect);
                             
-                            PushRect(RenderGroup, EntityAsRect, 1, V4(0, 1, 1, 1));
+                            //PushRect(RenderGroup, EntityAsRect, 1, V4(0, 1, 1, 1));
                             ///////
                         } break;
-                        case Entity_Philosopher: {
-                            if(!GameState->UIState->GamePaused) {
-                                //First we try to find the player
-                                v2i PlayerPos = GetGridLocation(Player->Pos);
-                                world_chunk *PlayerChunk = GetOrCreateWorldChunk(GameState->Chunks, PlayerPos.X, PlayerPos.Y, 0, ChunkNull);
-                                Assert(PlayerChunk);
-                                b32 WasSuccessful = false;
-                                
-                                // NOTE(Oliver): This should be a more complete function that compares paths and decides if we need to construct a new one.
-                                
-                                //Case where the chunk changes to a new type, so search isn't valid anymore -> Maybe go to last valid position...
-                                // TODO(Oliver): Maybe we could fix this during the move. If the chunk suddenly changes to an invalid chunk, we will try backtrace or go to the nearest valid chunk type. 
-                                
-                                if(LookingForPosition(Entity, PlayerPos) && !ContainsChunkType(Entity, PlayerChunk->Type)) {
-                                    EndPath(Entity);
-                                }
-                                
-                                if(Entity->LastSearchPos != PlayerPos &&  ContainsChunkType(Entity, PlayerChunk->Type) && Entity->IsAtEndOfMove) {
-                                    v2 TargetPos_r32 = WorldChunkInMeters*V2i(PlayerPos);
-                                    
-                                    WasSuccessful = InitializeMove(GameState, Entity, TargetPos_r32);
-                                    if(WasSuccessful) {
-                                        Entity->LastSearchPos = PlayerPos;
-                                    }
-                                } 
-                                //Then if we couldn't find the player we just move a random direction
-                                if(!WasSuccessful && !HasMovesLeft(Entity)) {
-                                    
-                                    random_series *RandGenerator = &GameState->GeneralEntropy;
-                                    
-                                    s32 PossibleStates[] = {-1, 0, 1};
-                                    v2i Dir = {};
-                                    for(;;) {
-                                        b32 InArray = false;
-                                        fori(Entity->LastMoves) {
-                                            if(Dir == Entity->LastMoves[Index]) {
-                                                InArray = true;
-                                                break;
-                                            }
-                                        }
-                                        if(InArray) {
-                                            s32 Axis = RandomBetween(RandGenerator, 0, 1);
-                                            if(Axis) {
-                                                Dir.X = RandomBetween(RandGenerator, -1, 1);
-                                                Dir.Y = 0;
-                                                
-                                            } else {
-                                                Dir.X = 0;
-                                                Dir.Y = RandomBetween(RandGenerator, -1, 1);
-                                            }
-                                            
-                                        } else {
-                                            break;
-                                        }
-                                    }
-                                    Entity->LastMoves[Entity->LastMoveAt++] = V2int(-Dir.X,-Dir.Y);
-                                    if(Entity->LastMoveAt >= ArrayCount(Entity->LastMoves)) { Entity->LastMoveAt = 0;}
-                                    
-                                    v2 TargetPos_r32 = WorldChunkInMeters*V2i(GetGridLocation(Entity->Pos) + Dir);
-                                    b32 SuccessfulMove = InitializeMove(GameState, Entity, TargetPos_r32);
-                                    Assert(SuccessfulMove);
-                                }
-                                
-                                UpdateEntityPositionViaFunction(GameState, Entity, dt);
-                                if(GetGridLocation(Entity->Pos) == GetGridLocation(Player->Pos)) {
-                                    GameState->GameMode = GAMEOVER_MODE;
-                                }
-                            }
-                            PushRect(RenderGroup, EntityAsRect, 1, V4(1, 0, 0, 1));
-                            //PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->MossBlockBitmap,  BufferRect);
-                        } break;
-                        case Entity_Block: {
-                            if(!GameState->UIState->GamePaused) {
-                                UpdateEntityPositionViaFunction(GameState, Entity, dt);
-                            }
-                            PushRect(RenderGroup, EntityAsRect, 1, V4(1, 0.9f, 0.6f, 1)); 
-                            if(!IsValidGridPosition(GameState, Entity->Pos)) {
-                                PushRect(RenderGroup, EntityAsRect, 1, V4(1, 0, 0, 0.4f)); 
-                            }
-                            
-                            PushRectOutline(RenderGroup, EntityAsRect, 1, V4(0, 0, 0, 1)); 
-                            //PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->MossBlockBitmap,  BufferRect);
-                        } break;
-                        case Entity_Dropper: {
-                            b32 Moved = UpdateEntityPositionViaFunction(GameState, Entity, dt);
-                            if(Moved) {
-                                entity* Changer = InitEntity(GameState, Entity->Pos, WorldChunkInMeters*V2(0.5f, 0.5f), Entity_Chunk_Changer);
-                                AddChunkTypeToChunkChanger(Changer, ChunkLight);
-                                AddChunkTypeToChunkChanger(Changer, ChunkDark);
-                                
-                            }
-                            
-                            if(!HasMovesLeft(Entity)) {
-                                //Add to a list to remove afterwards
-                                RemoveEntity(GameState, EntityIndex);
-                            } else {
-                                PushRect(RenderGroup, EntityAsRect, 1, V4(0.8f, 0.8f, 0, 1));
-                            }
-                        } break;
-                        case Entity_Chunk_Changer: {
-                            
-                            PushRect(RenderGroup, EntityAsRect, 1, V4(1, 0, 0, 0.1f));
-                            
-                            v2i GridP = GetGridLocation(Entity->Pos);
-                            
-                            world_chunk *Chunk = GetOrCreateWorldChunk(GameState->Chunks, GridP.X, GridP.Y, 0, ChunkNull);
-                            Assert(Chunk);
-                            b32 MoveToNextChunk = UpdateTimer(&Entity->ChunkTimer, dt);
-                            if(MoveToNextChunk) {
-                                Chunk->Type = Entity->ChunkList[Entity->ChunkAt];
-                                if(Entity->LoopChunks) {
-                                    Entity->ChunkAt = WrapU32(0, Entity->ChunkAt + 1, Entity->ChunkListCount - 1);
-                                } else {
-                                    Entity->ChunkAt = ClampU32(0, Entity->ChunkAt + 1, Entity->ChunkListCount - 1);
-                                }
-                            }
-                            //Destory Entity if past its life span
-                            Entity->LifeSpan -= dt;
-                            if(Entity->LifeSpan <= 0.0f) {
-                                b32 WasRemoved = RemoveEntity(GameState, EntityIndex);
-                                Assert(WasRemoved);
-                            }
-                            
-                            
-                        } break;
                         case Entity_Home: {
-                            PushRect(RenderGroup, EntityAsRect, 1, V4(1, 0, 1, 1));
-                            entity *Philospher = GetEntity(GameState, Entity->Pos, Entity_Philosopher);
-                            if(Philospher) {
-                                GameState->GameMode = WIN_MODE;
-                            }
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->HouseShadow, 6.5f, BufferRect);
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->House, 3.0f, BufferRect);
                         } break;
                         case((u32)Entity_Guru): {
                             PushRect(RenderGroup, EntityAsRect, 1, V4(1, 0, 1, 1));

@@ -272,6 +272,18 @@ internal inline b32 CanMove(entity *Entity, r32 PercentOfMoveFinished = 1.0f) {
     return Result;
 }
 
+inline b32 ContainsChunkType(entity *Entity, chunk_type ChunkType) {
+    
+    b32 Result = false;
+    fori_count(Entity->ChunkTypeCount) {
+        if(Entity->ValidChunkTypes[Index] == ChunkType) {
+            Result = true;
+            break;
+        }
+    }
+    return Result;
+}
+
 internal inline b32 IsValidChunkType(game_state *GameState, entity *Entity, v2i Pos, b32 Break = false) {
     b32 Result = false;
     world_chunk *ChunkHeadingFor = GetOrCreateWorldChunk(GameState->Chunks, Pos.X, Pos.Y, 0, ChunkNull);
@@ -402,3 +414,78 @@ InitializeMove(game_state *GameState, entity *Entity, v2 TargetP_r32, b32 Strict
     
     return FoundTargetP;
 }
+
+/*
+This is the code we had for updating the AI. It looks for the players postion and if it finds it, it sets that as its new path. If not it just does a random walk. 
+
+//////////////////////////////
+    if(!GameState->UIState->GamePaused) {
+        //First we try to find the player
+        v2i PlayerPos = GetGridLocation(Player->Pos);
+        world_chunk *PlayerChunk = GetOrCreateWorldChunk(GameState->Chunks, PlayerPos.X, PlayerPos.Y, 0, ChunkNull);
+        Assert(PlayerChunk);
+        b32 WasSuccessful = false;
+        
+        // NOTE(Oliver): This should be a more complete function that compares paths and decides if we need to construct a new one.
+        
+        //Case where the chunk changes to a new type, so search isn't valid anymore -> Maybe go to last valid position...
+        // TODO(Oliver): Maybe we could fix this during the move. If the chunk suddenly changes to an invalid chunk, we will try backtrace or go to the nearest valid chunk type. 
+        
+        if(LookingForPosition(Entity, PlayerPos) && !ContainsChunkType(Entity, PlayerChunk->Type)) {
+            EndPath(Entity);
+        }
+        
+        if(Entity->LastSearchPos != PlayerPos &&  ContainsChunkType(Entity, PlayerChunk->Type) && Entity->IsAtEndOfMove) {
+            v2 TargetPos_r32 = WorldChunkInMeters*V2i(PlayerPos);
+            
+            WasSuccessful = InitializeMove(GameState, Entity, TargetPos_r32);
+            if(WasSuccessful) {
+                Entity->LastSearchPos = PlayerPos;
+            }
+        } 
+        //Then if we couldn't find the player we just move a random direction
+        if(!WasSuccessful && !HasMovesLeft(Entity)) {
+        
+            random_series *RandGenerator = &GameState->GeneralEntropy;
+            
+            s32 PossibleStates[] = {-1, 0, 1};
+            v2i Dir = {};
+            for(;;) {
+                b32 InArray = false;
+                fori(Entity->LastMoves) {
+                    if(Dir == Entity->LastMoves[Index]) {
+                        InArray = true;
+                        break;
+                    }
+                }
+                if(InArray) {
+                    s32 Axis = RandomBetween(RandGenerator, 0, 1);
+                    if(Axis) {
+                        Dir.X = RandomBetween(RandGenerator, -1, 1);
+                        Dir.Y = 0;
+                        
+                    } else {
+                        Dir.X = 0;
+                        Dir.Y = RandomBetween(RandGenerator, -1, 1);
+                    }
+                    
+                } else {
+                    break;
+                }
+            }
+            Entity->LastMoves[Entity->LastMoveAt++] = V2int(-Dir.X,-Dir.Y);
+            if(Entity->LastMoveAt >= ArrayCount(Entity->LastMoves)) { Entity->LastMoveAt = 0;}
+            
+            v2 TargetPos_r32 = WorldChunkInMeters*V2i(GetGridLocation(Entity->Pos) + Dir);
+            b32 SuccessfulMove = InitializeMove(GameState, Entity, TargetPos_r32);
+            Assert(SuccessfulMove);
+        }
+        
+        UpdateEntityPositionViaFunction(GameState, Entity, dt);
+        if(GetGridLocation(Entity->Pos) == GetGridLocation(Player->Pos)) {
+            GameState->GameMode = GAMEOVER_MODE;
+        }
+    }
+    PushRect(RenderGroup, EntityAsRect, 1, V4(1, 0, 0, 1));
+}
+*/
