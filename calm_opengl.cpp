@@ -114,6 +114,23 @@ OpenGlDrawRectangleOutline(v2 MinP, v2 MaxP, v4 Color, r32 Thickness = 5.0f) {
     
 }
 
+inline void SetModelMatrix(r32 Angle, v2 Translation, r32 SkewFactor, v2 ScaleFactor) {
+    glMatrixMode(GL_MODELVIEW); 
+    r32 SkewAngle = SkewFactor*(PI32 / 4);
+    r32 aX = ScaleFactor.X*Cos(Angle + SkewAngle); 
+    r32 bX = ScaleFactor.X*Sin(Angle + SkewAngle);
+    r32 aY = ScaleFactor.Y*-Sin(Angle - SkewAngle);
+    r32 bY = ScaleFactor.Y*Cos(Angle - SkewAngle); 
+    r32 ModelMat[] = {
+        aX,  bX,  0,  0,
+        aY,  bY,  0,  0,
+        0,  0,  1,  0,
+        Translation.X, Translation.Y, 0,  1
+    };
+    glLoadMatrixf(ModelMat);
+}
+
+
 inline void OpenGlSetScreenSpace(s32 Width, s32 Height) {
     glMatrixMode(GL_MODELVIEW); 
     glLoadIdentity();
@@ -160,6 +177,7 @@ void OpenGlRenderToOutput(render_group *Group, b32 draw) {
             glLoadIdentity();
             glMatrixMode(GL_MODELVIEW); 
             glLoadIdentity();
+            /*
             glMatrixMode(GL_PROJECTION); 
             
             r32 a = Group->Transform.Rotation.X*SafeRatio1(2.0f, (r32)Width); 
@@ -172,6 +190,7 @@ void OpenGlRenderToOutput(render_group *Group, b32 draw) {
             };
             
             glLoadMatrixf(ProjMat);
+            */
             
             render_element_header *Header = (render_element_header *)At;
             switch(Header->Type) {
@@ -190,9 +209,7 @@ void OpenGlRenderToOutput(render_group *Group, b32 draw) {
                     
                     bitmap *Bitmap = Info->Bitmap;
                     
-                    v2 MinP = Info->Pos;
-                    v2 MaxP = MinP + Info->Dim; //V2i(Bitmap->Width, Bitmap->Height);
-                    
+                    SetModelMatrix(Info->Angle, Info->Pos, Info->SkewFactor, Info->Scale);
                     
                     if(Bitmap->Handle) {
                         glBindTexture(GL_TEXTURE_2D, Bitmap->Handle); 
@@ -212,8 +229,12 @@ void OpenGlRenderToOutput(render_group *Group, b32 draw) {
                         
                     }
                     
-                    
-                    OpenGlDrawRectangle(MinP, MaxP, Info->Color);
+                    /*
+                    v2 MinP = Info->Pos;
+                    v2 MaxP = MinP + Info->Dim; 
+                    */
+                    rect2 Dim = Info->Dim;
+                    OpenGlDrawRectangle(Dim.Min, Dim.Max, Info->Color);
                     
                     At += sizeof(render_element_header) + sizeof(render_element_bitmap);
                 } break;

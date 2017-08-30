@@ -44,6 +44,16 @@ struct v4
         {
             r32 R, G, B, A;
         };
+        struct
+        {
+            v3 XYZ;
+            r32 Ignored0;
+        };
+        struct
+        {
+            r32 Ignored1;
+            v3 YZW;
+        };
     };
 };
 
@@ -82,8 +92,18 @@ Mat2()
 }
 
 inline r32 
-Mat2ToAngle(mat2 M) { 
+ToAngle(mat2 M) { 
     r32 Result = ATan2(M.E[0][0], M.E[0][1]);
+    return Result;
+}
+
+inline mat2 
+ToMat2(r32 A) { 
+    mat2 Result;
+    
+    Result.E[0][0] = Cos(A); Result.E[0][1] = Sin(A);
+    Result.E[1][0] = -Sin(A); Result.E[1][1] = Cos(A);
+    
     return Result;
 }
 
@@ -217,6 +237,18 @@ Lerp(r32 A, r32 t, r32 B)
     return Result;
 }
 
+
+inline r32
+Lerp0To0(r32 A, r32 t, r32 B)
+{
+    r32 tMod = 2*t;
+    if(t > 0.5f) {
+        tMod = -2*t + 2;
+    }
+    
+    r32 Result = A + tMod*(B - A);
+    return Result;
+}
 
 
 inline r32 SineousLerp0To1(r32 A, r32 t, r32 B) {
@@ -482,6 +514,18 @@ Lerp(v2 A, r32 t, v2 B)
     return Result;
 }
 
+inline v2
+Lerp0To0(v2 A, r32 t, v2 B)
+{
+    r32 tMod = 2*t;
+    if(t > 0.5f) {
+        tMod = -2*t + 2;
+    }
+    
+    v2 Result = A + tMod*(B - A);
+    return Result;
+}
+
 inline v2 SineousLerp0To1(v2 A, r32 t, v2 B) {
     r32 TransformedT = (r32)sin(t*PI32/2);
     v2 Result = Lerp(A, TransformedT, B);
@@ -646,6 +690,7 @@ ToV3(v2 XY, real32 Z)
     return Result;
 }
 
+
 inline v3
 operator *(r32 Scalar, v3 A)
 {
@@ -692,6 +737,14 @@ operator +=(v3 &A, v3 B)
     A = A + B;
     return A;
 }
+
+inline v3
+Lerp(v3 Start, r32 t, v3 End)
+{
+    v3 Result = Start + t*(End - Start);
+    return Result;
+}
+
 
 //NOTE(oliver): V4 operations
 
@@ -799,7 +852,16 @@ ExponentialDownLerp0To1(v4 A, r32 tValue, v4 B) {
     return Result;
     
 }
-
+inline v4
+ToV4(v3 XYZ, real32 W)
+{
+    v4 Result = {};
+    
+    Result.XYZ = XYZ;
+    Result.W = W;
+    
+    return Result;
+}
 //NOTE(Oliver): rect2 operations
 
 struct rect2

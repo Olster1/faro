@@ -123,7 +123,7 @@ struct animation {
     r32 Qualities[ANIMATE_QUALITY_COUNT];
 };
 
-static r32 WorldChunkInMeters = 1.0f;
+static r32 WorldChunkInMeters = 2.0f;
 
 struct world_chunk {
     s32 X;
@@ -187,10 +187,13 @@ struct game_state
     bitmap HouseShadow;
     bitmap House;
     
+    u32 SunsetIndexAt;
+    v3 SunsetColors[7];
+    
     u32 FootPrintCount;
     u32 FootPrintIndex;
     v2 FootPrintPostions[1028];
-    
+    r32 FootPrintTimer;
     
     animation *CurrentAnimation;
     u32 FrameIndex;

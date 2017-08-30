@@ -40,6 +40,9 @@ struct entity
     v2 Velocity;
     v2 Dim;
     
+    r32 dA;
+    mat2 Rotation;
+    
     u32 WalkSoundAt; //For Sound effects
     
     r32 LifeSpan;//seconds
@@ -75,7 +78,7 @@ struct entity
     r32 MovePeriod;
     
     s32 LifePoints;
-    mat2 Rotation;
+    
     r32 FacingDirection;    
     
     b32 TriggerAction;

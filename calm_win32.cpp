@@ -1038,7 +1038,7 @@ int WinMain(HINSTANCE Instance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nC
                         {
                             BytesToWrite = 0;
                         }
-                        
+#if 0
                         if(WasPressed(GameMemory.GameButtons[Button_Left])) {
                             ViewIndex++;
                         }
@@ -1060,7 +1060,7 @@ int WinMain(HINSTANCE Instance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nC
                         
                         PushRect(&OrthoRenderGroup, Rect2MinMax(V2(PlayCursorX, 0), V2(PlayCursorX + 5, 100)), 1, V4(1, 0, 0, 1));
                         
-                        
+#endif
                         game_sound_buffer GameSoundBuffer = {};
                         GameSoundBuffer.Samples = AudioSamples;
                         GameSoundBuffer.SamplesToWrite = BytesToWrite / SoundInfo.BytesPerSampleForBothChannels;

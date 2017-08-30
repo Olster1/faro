@@ -158,6 +158,10 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                 GameState->GameMode = MENU_MODE;
                 break;
             }
+            if(WasPressed(Memory->GameButtons[Button_F3])) {
+                GameState->ShowHUD = !GameState->ShowHUD;
+                
+            }
             if(WasPressed(Memory->GameButtons[Button_F1]))
             {
                 if(DebugConsole.ViewMode == VIEW_MID) {
@@ -233,19 +237,19 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                 
                 if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Left]))
                 {
-                    PlayerMove = V2(-1, 0);
+                    PlayerMove += V2(-1, 0);
                 }
                 if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Right]))
                 {
-                    PlayerMove = V2(1, 0);
+                    PlayerMove += V2(1, 0);
                 }
                 if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Down]))
                 {
-                    PlayerMove = V2(0, -1);
+                    PlayerMove += V2(0, -1);
                 }
                 if(PLAYER_MOVE_ACTION(Memory->GameButtons[Button_Up]))
                 {
-                    PlayerMove = V2(0, 1);
+                    PlayerMove += V2(0, 1);
                 }
                 
                 if(GameState->UIState->ControlCamera || GameState->UIState->GamePaused) {
@@ -294,10 +298,11 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
 #define DRAW_GRID 1
             
 #if DRAW_GRID
-            r32 ScreenFactor = 0.7f;
+            r32 MetersToWorldChunks = 1.0f / WorldChunkInMeters;
+            r32 ScreenFactor = 1.0f;
             v2 HalfScreenDim = ScreenFactor*Hadamard(Inverse(RenderGroup->Transform.Scale), RenderGroup->ScreenDim);
-            v2i Min = ToV2i(CamPos - HalfScreenDim);
-            v2i Max = ToV2i(CamPos + HalfScreenDim);
+            v2i Min = ToV2i(MetersToWorldChunks*(CamPos - HalfScreenDim));
+            v2i Max = ToV2i(MetersToWorldChunks*(CamPos + HalfScreenDim));
             
             for(s32 X = Min.X; X < Max.X; X++) {
                 for(s32 Y = Min.Y; Y < Max.Y; ++Y) {
@@ -332,7 +337,7 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                         }
                         
                         //PushRect(RenderGroup, Rect, 1, Color01);
-                        PushBitmap(RenderGroup, V3(MinX, MinY, 1), &GameState->DesertGround, 1.0f, BufferRect);
+                        PushBitmap(RenderGroup, V3(MinX, MinY, 1), &GameState->DesertGround, WorldChunkInMeters, BufferRect);
                         
                     }
                 }
@@ -342,7 +347,9 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
             r32 PercentOfScreen = 0.1f;
             v2 CameraWindow = (1.0f/MetersToPixels)*PercentOfScreen*V2i(Buffer->Width, Buffer->Height);
             //NOTE(): Draw Camera bounds that the player stays within. 
-            PushRectOutline(RenderGroup, Rect2(-CameraWindow.X, -CameraWindow.Y, CameraWindow.X, CameraWindow.Y), 1, V4(1, 0, 1, 1));
+            if(GameState->ShowHUD) {
+                PushRectOutline(RenderGroup, Rect2(-CameraWindow.X, -CameraWindow.Y, CameraWindow.X, CameraWindow.Y), 1, V4(1, 0, 1, 1));
+            }
             ////
             for(u32 EntityIndex = 0; EntityIndex < GameState->EntityCount; ++EntityIndex)
             {
@@ -359,10 +366,17 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                             if(!GameState->UIState->GamePaused) {
                                 /////////NOTE(Oliver): Update Player's postion/////////////// 
                                 
-                                v2 Accel = 300.0f*PlayerMove;
-                                UpdateEntityPositionWithImpulse(GameState, Entity, dt, Accel);
-                                b32 DidMove = false;
-                                if(DidMove) {
+                                r32 ddA = 0.0f;
+                                v2 Accel = 100.0f*PlayerMove;
+                                UpdateEntityPositionWithImpulse(GameState, Entity, dt, Accel, ddA);
+                                GameState->FootPrintTimer += dt;
+                                if(ToV2i(PlayerMove) != V2int(0, 0) && GameState->FootPrintTimer > 0.1f) {
+                                    GameState->FootPrintTimer = 0.0f;
+                                    
+                                    GameState->FootPrintPostions[GameState->FootPrintIndex++] = Player->Pos;
+                                    GameState->FootPrintIndex = WrapU32(0, GameState->FootPrintIndex, ArrayCount(GameState->FootPrintPostions));
+                                    GameState->FootPrintCount = ClampU32(0, GameState->FootPrintCount + 1, ArrayCount(GameState->FootPrintPostions));
+                                    
                                     PushSound(GameState, &GameState->FootstepsSound[Entity->WalkSoundAt++], 1.0, false);
                                     if(Entity->WalkSoundAt >= 2) {
                                         Entity->WalkSoundAt = 0;
@@ -390,8 +404,37 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                                 }
                                 /////////////////////////////
                             }
-                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Shadow, 1.0f, BufferRect);
-                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Man, 1.0f, BufferRect);
+                            
+                            for(u32 i = 0; i < GameState->FootPrintCount; ++i) {
+                                v2 FootPos = GameState->FootPrintPostions[i] - CamPos;
+                                if(i % 2) {
+                                    FootPos += V2(0.4f, -0.4f);
+                                }
+                                
+                                PushBitmap(RenderGroup, V3(FootPos, 1), &GameState->FootPrint, 0.25f, BufferRect);
+                            }
+                            static r32 t = 0;
+                            static r32 Animatet = 0;
+                            t += dt/4;
+                            Animatet += dt;
+                            r32 Angle = SineousLerp0To1(0, t, PI32);
+                            r32 Skew = SineousLerp0To0(0.4f, t, -0.6f);
+                            
+                            if(t > 1.0f) {
+                                t = 0;
+                            }
+                            if(Animatet > 1.0f) {
+                                Animatet = 0;
+                            }
+                            r32 ScaleX = Lerp0To0(1, Animatet, -1);
+                            r32 PlayerAngle = ToAngle(Entity->Rotation);
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Legs, 1.0f, BufferRect, V4(1, 1, 1, 1), PlayerAngle, 0.0f, V2(ScaleX, 1));
+                            
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Arms, 1.0f, BufferRect, V4(1, 1, 1, 1), PlayerAngle, 0.0f, V2(ScaleX, 1));
+                            
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Shadow, 1.0f, BufferRect, V4(1, 1, 1, 1), Angle, Skew);
+                            
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Man, 1.0f, BufferRect, V4(1, 1, 1, 1), PlayerAngle);
                             
                             //PushRect(RenderGroup, EntityAsRect, 1, V4(0, 1, 1, 1));
                             ///////
@@ -421,8 +464,27 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                 }
             }
             
-            UpdateAndDrawUI(GameState->UIState, GameState, CamPos, MouseP_PerspectiveSpace, MouseP_OrthoSpace, GameState->DebugFont, OrthoRenderGroup, Memory, RenderGroup);
+#define SUNSET 0
+#if SUNSET
+            static r32 tAt = 0;
+            tAt += dt;
+            u32 Count = ArrayCount(GameState->SunsetColors);
+            u32 i = GameState->SunsetIndexAt;
+            u32 j = WrapU32(0, GameState->SunsetIndexAt + 1, Count);
+            if(tAt > 1.0f) {
+                tAt = 0;
+                GameState->SunsetIndexAt++;
+                if(GameState->SunsetIndexAt >= Count) {
+                    GameState->SunsetIndexAt = 0;
+                }
+            }
+            v3 SunSetColor = Lerp(GameState->SunsetColors[i], tAt,  GameState->SunsetColors[j]);
+            PushRect(OrthoRenderGroup, Rect2MinDim(V2(0, 0), OrthoRenderGroup->ScreenDim), 1, ToV4(SunSetColor, 0.4f));
             
+#endif
+            if(GameState->ShowHUD) {
+                UpdateAndDrawUI(GameState->UIState, GameState, CamPos, MouseP_PerspectiveSpace, MouseP_OrthoSpace, GameState->DebugFont, OrthoRenderGroup, Memory, RenderGroup);
+            }
         } //END OF PLAY_MODE 
     } //switch on GAME_MODE
     

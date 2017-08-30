@@ -502,7 +502,8 @@ inline void PushRectCenterOutline(render_group *Group, rect2 Dim, r32 ZDepth, v4
     
 }
 
-void PushBitmap(render_group *Group, v3 Pos, bitmap *Bitmap, r32 WidthInWorldSpace,  rect2 ClipRect, v4 Color = V4(1, 1, 1, 1)) {
+void PushBitmap(render_group *Group, v3 Pos, bitmap *Bitmap, r32 WidthInWorldSpace,  rect2 ClipRect, v4 Color = V4(1, 1, 1, 1), r32 Angle = 0.0f, r32 SkewFactor = 0.0f, v2 ScaleFactor = V2(1, 1)) {
+    
     render_element_header *Header = (render_element_header *)PushSize(&Group->Arena, sizeof(render_element_bitmap) + sizeof(render_element_header));
     
     Header->Type = render_bitmap;
@@ -511,11 +512,16 @@ void PushBitmap(render_group *Group, v3 Pos, bitmap *Bitmap, r32 WidthInWorldSpa
     
     Info->Bitmap = Bitmap;
     Info->ClipRect = ClipRect;
+    Info->Angle = Angle;
+    Info->SkewFactor = SkewFactor; // This is between 0 & 1
+    Info->Scale = ScaleFactor;
     Info->Color = Color;
     r32 WidthToHeightRatio = SafeRatio0((r32)Bitmap->Height, (r32)Bitmap->Width); 
     r32 HeightInWorldSpace = WidthToHeightRatio*WidthInWorldSpace;
-    Info->Dim = Scale(&Group->Transform, V2(WidthInWorldSpace, HeightInWorldSpace));
-    Info->Pos = Transform(&Group->Transform, Pos.XY) - Hadamard(Bitmap->AlignPercent, Info->Dim);
+    v2 Dim = Scale(&Group->Transform, V2(WidthInWorldSpace, HeightInWorldSpace));
+    v2 Offset = Hadamard(Bitmap->AlignPercent, Dim);
+    Info->Dim = Rect2MinMax(-Offset, Dim - Offset);
+    Info->Pos = Transform(&Group->Transform, Pos.XY);
     Info->ZDepth = Pos.Z;
 }
 

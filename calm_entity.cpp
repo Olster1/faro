@@ -268,14 +268,22 @@ IsOverlapping(array_v2 Vertexes, v2 P)
 }
 
 internal void
-UpdateEntityPositionWithImpulse(game_state *GameState, entity *Entity, r32 dt, v2 Acceleration, b32 Collides = true)
+UpdateEntityPositionWithImpulse(game_state *GameState, entity *Entity, r32 dt, v2 Acceleration, r32 ddA,  b32 Collides = true)
 {
     
-    r32 DragCoeff = 0.8f;
+    r32 DragCoeff = 0.4f;
     v2 EntityNewPos = 0.5f*Sqr(dt)*Acceleration + dt*Entity->Velocity + Entity->Pos;
     Entity->Velocity += dt*Acceleration - DragCoeff*Entity->Velocity;
     
     v2 DeltaEntityPos = EntityNewPos - Entity->Pos;
+    
+    //ANGLE UPDATE
+    r32 EntityAngle = ToAngle(Entity->Rotation);
+    r32 NewAngle =  0.5f*Sqr(dt)*ddA + dt*Entity->dA + EntityAngle;
+    Entity->dA += dt*ddA - DragCoeff*Entity->dA;
+    
+    Entity->Rotation = ToMat2(NewAngle);
+    ////
     
     if(Collides)
     {
@@ -396,7 +404,10 @@ UpdateEntityPositionWithImpulse(game_state *GameState, entity *Entity, r32 dt, v
     else
     {
         Entity->Pos = EntityNewPos;
+        Entity->Rotation = ToMat2(NewAngle);
     }
+    //
+    
     
 }
 

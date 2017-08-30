@@ -33,7 +33,11 @@ struct render_element_bitmap
     rect2 ClipRect;
     v4 Color;
     r32 ZDepth;
-    v2 Dim;
+    rect2 Dim;
+    r32 Angle;
+    r32 SkewFactor;
+    v2 Scale;
+    
 };
 
 struct render_element_rect
