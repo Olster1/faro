@@ -71,6 +71,8 @@ struct entity
     
     b32 IsAtEndOfMove;
     
+    r32 AnimateSide;
+    
     v2 EndOffsetTargetP;
     v2 BeginOffsetTargetP;
     
@@ -87,6 +89,11 @@ struct entity
     r32 InverseWeight;
     b32 Collides; 
     u32 Index;
+    
+    r32 ReboundCoefficient;
+    
+    timer AnimateTimer;
+    b32 IsAnimating;
     
     particle_system ParticleSystem;
     

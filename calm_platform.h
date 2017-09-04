@@ -47,9 +47,10 @@ typedef s32 int32;
 typedef s64 int64;
 
 typedef intptr_t intptr;
+typedef uintptr_t uintptr;
 
 typedef b32 bool32;
-
+#include <intrin.h>
 
 struct v2
 {
@@ -62,6 +63,9 @@ struct v2
         struct
         {
             r32 U, V;
+        };
+        struct {
+            r32 E[2];
         };
     };
 };
@@ -89,6 +93,7 @@ struct v2i
 #include <float.h>
 #define MAX_U32 0xFFFFFFFF
 #define MAX_S32 2147483647
+#define MAX_FLOAT FLT_MAX
 
 #define global_variable static
 #define internal static
@@ -103,6 +108,12 @@ struct v2i
 #define Max(A, B) (A < B) ? B : A
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof(Array[0]))
+#define DEFAULT_ALIGNMENT 4
+
+#define Align(Value, n) ((Value + (n - 1)) & ~(n - 1))
+#define Align16(Value) (((Value) + 15) & (~15))
+#define Align4(Value) (((Value) + 3) & (~3))
+#define Align8(Value) Align(Value, 8)
 
 #define fori(Array) for(u32 Index = 0; Index < ArrayCount(Array); ++Index)
 #define fori_count(Count) for(u32 Index = 0; Index < Count; ++Index)
@@ -288,14 +299,15 @@ inline void EndProgram(game_memory *Memory) {
     *Memory->GameRunningPtr = false;
 }
 
-struct game_sound_buffer
+
+typedef struct game_output_sound_buffer
 {
-    s16 *Samples;
-    u32 ChannelCount;
-    u32 SamplesToWrite;
-    u32 SamplesPerSecond;
+    int16 *Samples;
+    int32 SampleRate;
+    int32 SamplesToWrite;
     
-};
+} game_output_sound_buffer;
+
 
 //MEMORY ARENAS
 
@@ -317,30 +329,64 @@ struct temp_memory
     u32 ID;
 };
 
-#define PushArray(Arena, Type, Size, ...) (Type *)PushSize(Arena, Size*sizeof(Type), __VA_ARGS__)
-#define PushStruct(Arena, Type) (Type *)PushSize(Arena, sizeof(Type))
+
+#define PushStruct(Memory, type, ...) (type *)PushSize_(Memory, sizeof(type), ##__VA_ARGS__)
+#define PushArray(Memory, type, size, ...) (type *)PushSize_(Memory, size * (sizeof(type)), ##__VA_ARGS__)
+#define PushSize(Memory, size, ...) PushSize_(Memory, size, ##__VA_ARGS__)
+#define PushCopy(Arena, Source, Size, ...) Copy(Source, PushSize_(Arena, Size, ##__VA_ARGS__), Size);
+
+inline uint32
+GetAlignmentOffset(memory_arena *Arena, uint32 Alignment)
+{
+    uintptr MemoryPtr = (uintptr)(((u8 *)Arena->Base) + Arena->CurrentSize);
+    
+    uint32 Result = 0;
+    if((MemoryPtr & (Alignment - 1)) != 0)
+    {
+        Result = Alignment - (MemoryPtr & (Alignment - 1));
+        
+    }
+    
+    return Result;
+}
+
+inline size_t GetEffectiveSizeFor(memory_arena *Arena, size_t Size, u32 Alignment = DEFAULT_ALIGNMENT)
+{
+    uint32 AlignmentOffset = GetAlignmentOffset(Arena, Alignment);
+    
+    size_t EffectiveSize = Size + AlignmentOffset;
+    
+    return EffectiveSize;
+}
+
+inline b32
+ArenaHasRoomFor(memory_arena *Arena, size_t Size, uint32 Alignment = DEFAULT_ALIGNMENT)
+{
+    size_t EffectiveSize = GetEffectiveSizeFor(Arena, Size, Alignment);
+    
+    b32 Result  = (Arena->CurrentSize + EffectiveSize) <= Arena->TotalSize;
+    
+    return Result;
+}
 
 
 inline void *
-PushSize(memory_arena *Arena, size_t Size, b32 Clear = true)
+PushSize_(memory_arena *Arena, size_t Size_, uint32 Alignment_ = DEFAULT_ALIGNMENT)
 {
-    Assert((Arena->CurrentSize + Size) <= Arena->TotalSize);
-    void *Result = (void *)((u8 *)Arena->Base + Arena->CurrentSize);
-    Arena->CurrentSize += Size;
     
-    if(Clear)
-    {
-        size_t ClearSize = Size;
-        u8 *Memory = (u8 *)Result; 
-        while(ClearSize--)
-        {
-            *Memory++ = 0;
-        }
-    }    
+    size_t EffectiveSize = GetEffectiveSizeFor(Arena, Size_, Alignment_);
+    
+    Assert((Arena->CurrentSize + EffectiveSize) <= Arena->TotalSize);
+    
+    u32 AlignmentOffset = GetAlignmentOffset(Arena, Alignment_);
+    void *Result = (void *)(((u8 *)Arena->Base) + Arena->CurrentSize + AlignmentOffset);
+    
+    Assert(((uintptr)Result & (Alignment_ - 1)) == 0);
+    
+    Arena->CurrentSize += EffectiveSize;
+    
     return Result;
-    
 }
-
 
 inline void InitializeMemoryArena(memory_arena *Arena, void *Memory, s32 Size) {
     Arena->Base = (u8 *)Memory;

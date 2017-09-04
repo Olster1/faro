@@ -604,13 +604,22 @@ LengthSqr(v2 A)
 inline v2
 Normal(v2 A)
 {
-    v2 Result = (1.0f / Length(A))*A;
+    r32 L = Length(A);
+    if(L == 0.0f) {
+        L = 1.0f;
+    }
+    v2 Result = (1.0f / L)*A;
     return Result;
 }
 inline v2
 Hadamard(v2 A, v2 B)
 {
     v2 Result = V2(A.X*B.X, A.Y*B.Y);
+    return Result;
+}
+
+inline b32 IsEmpty(v2 A, r32 Epsilon = 0.0f) {
+    b32 Result = (Abs(A.X) <= Epsilon && Abs(A.Y) <= Epsilon) ? true : false;
     return Result;
 }
 

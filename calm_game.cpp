@@ -8,7 +8,7 @@
 
 #include "calm_game.h"
 #include "meta_enum_arrays.h"
-#include "calm_sound.cpp"
+#include "calm_audio.cpp"
 #include "calm_render.cpp"
 #include "calm_menu.cpp"
 #include "calm_console.cpp"
@@ -251,6 +251,7 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                 {
                     PlayerMove += V2(0, 1);
                 }
+                PlayerMove = Normal(PlayerMove);
                 
                 if(GameState->UIState->ControlCamera || GameState->UIState->GamePaused) {
                     GlobalPlayerMove = PlayerMove;
@@ -337,15 +338,17 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                         }
                         
                         //PushRect(RenderGroup, Rect, 1, Color01);
-                        PushBitmap(RenderGroup, V3(MinX, MinY, 1), &GameState->DesertGround, WorldChunkInMeters, BufferRect);
+                        v3 Pos = V3(MinX, MinY, 0.8f);
+                        PushBitmap(RenderGroup, Pos, &GameState->DesertGround,
+                                   WorldChunkInMeters, BufferRect, Pos.Z);
                         
                     }
                 }
             }
 #endif
             
-            r32 PercentOfScreen = 0.1f;
-            v2 CameraWindow = (1.0f/MetersToPixels)*PercentOfScreen*V2i(Buffer->Width, Buffer->Height);
+            v2 PercentOfScreen = V2(0.3f, 0.15f);
+            v2 CameraWindow = (1.0f/MetersToPixels)*Hadamard(PercentOfScreen, V2i(Buffer->Width, Buffer->Height));
             //NOTE(): Draw Camera bounds that the player stays within. 
             if(GameState->ShowHUD) {
                 PushRectOutline(RenderGroup, Rect2(-CameraWindow.X, -CameraWindow.Y, CameraWindow.X, CameraWindow.Y), 1, V4(1, 0, 1, 1));
@@ -365,10 +368,20 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                         {
                             if(!GameState->UIState->GamePaused) {
                                 /////////NOTE(Oliver): Update Player's postion/////////////// 
-                                
-                                r32 ddA = 0.0f;
+                                r32 ForceFactor = 600.0f;
+                                v2 EntityRot = V2(Entity->Rotation.E[0][0], Entity->Rotation.E[0][1]);
+                                r32 ddA = Inner(PlayerMove, EntityRot);
+                                AddToOutBuffer("%f, %f \n", PlayerMove.X, PlayerMove.Y);
+                                if(!IsEmpty(PlayerMove)) {
+                                    r32 SideOfVector = -1*SignOf(Inner(Perp(PlayerMove), EntityRot));
+                                    
+                                    ddA = (ddA/-2) + 0.5f;
+                                    Assert(ddA >= 0.0f && ddA <= 1.0f);
+                                    ddA *= SideOfVector;
+                                    
+                                }
                                 v2 Accel = 100.0f*PlayerMove;
-                                UpdateEntityPositionWithImpulse(GameState, Entity, dt, Accel, ddA);
+                                UpdateEntityPositionWithImpulse(GameState, Entity, dt, Accel, ForceFactor*ddA);
                                 GameState->FootPrintTimer += dt;
                                 if(ToV2i(PlayerMove) != V2int(0, 0) && GameState->FootPrintTimer > 0.1f) {
                                     GameState->FootPrintTimer = 0.0f;
@@ -377,7 +390,10 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                                     GameState->FootPrintIndex = WrapU32(0, GameState->FootPrintIndex, ArrayCount(GameState->FootPrintPostions));
                                     GameState->FootPrintCount = ClampU32(0, GameState->FootPrintCount + 1, ArrayCount(GameState->FootPrintPostions));
                                     
-                                    PushSound(GameState, &GameState->FootstepsSound[Entity->WalkSoundAt++], 1.0, false);
+                                    
+                                    
+                                    PlaySound(&GameState->AudioState, &GameState->FootstepsSound[Entity->WalkSoundAt++]);
+                                    
                                     if(Entity->WalkSoundAt >= 2) {
                                         Entity->WalkSoundAt = 0;
                                     }
@@ -411,37 +427,57 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                                     FootPos += V2(0.4f, -0.4f);
                                 }
                                 
-                                PushBitmap(RenderGroup, V3(FootPos, 1), &GameState->FootPrint, 0.25f, BufferRect);
+                                v3 Pos = V3(FootPos, 1);
+                                PushBitmap(RenderGroup, Pos, &GameState->FootPrint, 0.25f, BufferRect, Pos.Z);
                             }
-                            static r32 t = 0;
-                            static r32 Animatet = 0;
-                            t += dt/4;
-                            Animatet += dt;
+                            
+                            ///////////Animation Lerping////////////
+                            
+                            r32 MaxVel = 5.0f;
+                            r32 PeriodT = Length(Entity->Velocity) / MaxVel;
+                            Entity->AnimateTimer.Period = Lerp(0.4f, PeriodT, 0.3f);
+                            
+                            b32 IsMoving = !IsEmpty(Entity->Velocity, 0.1f);
+                            if(IsMoving) {
+                                Entity->IsAnimating = true;
+                            } 
+                            if(Entity->IsAnimating) {
+                                if(UpdateTimer(&Entity->AnimateTimer, dt)) {
+                                    Entity->AnimateSide *= -1;
+                                    if(!IsMoving) {
+                                        Entity->IsAnimating = false;
+                                    }
+                                }
+                            }
+                            r32 Animatet = CanonicalValue(&Entity->AnimateTimer);
+                            r32 ScaleX = Lerp0To0(0, Animatet, Entity->AnimateSide);
+                            
+                            /////////////////
+                            
+                            UpdateTimer(&GameState->DayLightTimer, dt);
+                            
+                            r32 t = CanonicalValue(&GameState->DayLightTimer);
                             r32 Angle = SineousLerp0To1(0, t, PI32);
                             r32 Skew = SineousLerp0To0(0.4f, t, -0.6f);
                             
-                            if(t > 1.0f) {
-                                t = 0;
-                            }
-                            if(Animatet > 1.0f) {
-                                Animatet = 0;
-                            }
-                            r32 ScaleX = Lerp0To0(1, Animatet, -1);
                             r32 PlayerAngle = ToAngle(Entity->Rotation);
-                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Legs, 1.0f, BufferRect, V4(1, 1, 1, 1), PlayerAngle, 0.0f, V2(ScaleX, 1));
+                            v3 Pos = V3(EntityRelP, 1);
+                            PushBitmap(RenderGroup, Pos, &GameState->Legs, 1.0f, BufferRect, Pos.Z, V4(1, 1, 1, 1), PlayerAngle, 0.0f, V2(ScaleX, 1));
                             
-                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Arms, 1.0f, BufferRect, V4(1, 1, 1, 1), PlayerAngle, 0.0f, V2(ScaleX, 1));
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Arms, 1.0f, BufferRect, Pos.Z, V4(1, 1, 1, 1), PlayerAngle, 0.0f, V2(ScaleX, 1));
                             
-                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Shadow, 1.0f, BufferRect, V4(1, 1, 1, 1), Angle, Skew);
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Shadow, 1.0f, BufferRect, Pos.Z, V4(1, 1, 1, 1), Angle, Skew);
                             
-                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->Man, 1.0f, BufferRect, V4(1, 1, 1, 1), PlayerAngle);
+                            PushBitmap(RenderGroup, V3(EntityRelP, 1),&GameState->Man, 1.0f, BufferRect, Pos.Z, V4(1, 1, 1, 1), PlayerAngle);
                             
                             //PushRect(RenderGroup, EntityAsRect, 1, V4(0, 1, 1, 1));
                             ///////
                         } break;
                         case Entity_Home: {
-                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->HouseShadow, 6.5f, BufferRect);
-                            PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->House, 3.0f, BufferRect);
+                            v3 Pos = V3(EntityRelP, 1);
+                            PushBitmap(RenderGroup, Pos, &GameState->HouseShadow, 6.5f, BufferRect, Pos.Z);
+                            PushBitmap(RenderGroup, Pos, &GameState->House, 3.0f, BufferRect, Pos.Z);
+                            
                         } break;
                         case((u32)Entity_Guru): {
                             PushRect(RenderGroup, EntityAsRect, 1, V4(1, 0, 1, 1));
@@ -461,6 +497,7 @@ GameUpdateAndRender(bitmap *Buffer, game_memory *Memory, render_group *OrthoRend
                             //PushBitmap(RenderGroup, V3(EntityRelP, 1), &GameState->MossBlockBitmap,  BufferRect);
                         } break;
                     }
+                    //PushRect(RenderGroup, Rect2MinMax(EntityRelP, EntityRelP + V2(10, 10)), 1, V4(0, 1, 0, 1));
                 }
             }
             

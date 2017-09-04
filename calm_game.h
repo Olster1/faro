@@ -92,7 +92,7 @@ enum chunk_type {
 #include "calm_bucket.cpp"
 #include "calm_random.h"
 #include "calm_console.h"
-#include "calm_sound.h"
+#include "calm_audio.h"
 #include "calm_particles.h"
 #include "calm_ui.h"
 #include "calm_entity.h"
@@ -123,7 +123,7 @@ struct animation {
     r32 Qualities[ANIMATE_QUALITY_COUNT];
 };
 
-static r32 WorldChunkInMeters = 2.0f;
+static r32 WorldChunkInMeters = 3.0f;
 
 struct world_chunk {
     s32 X;
@@ -144,7 +144,9 @@ struct game_state
     memory_arena PerFrameArena;
     memory_arena ScratchPad;
     memory_arena RenderArena;
+    memory_arena TransientArena;
     
+    audio_state AudioState;
     playing_sound *PlayingSounds;
     playing_sound *PlayingSoundsFreeList;
     
@@ -157,6 +159,8 @@ struct game_state
     
     search_cell *SearchCellFreeList;
     search_cell SearchCellSentinel;
+    
+    
     
     //TODO: Can we get rid of this using z-indexes!
     b32 RenderConsole;
@@ -189,6 +193,8 @@ struct game_state
     
     u32 SunsetIndexAt;
     v3 SunsetColors[7];
+    
+    timer DayLightTimer;
     
     u32 FootPrintCount;
     u32 FootPrintIndex;

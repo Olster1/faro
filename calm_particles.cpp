@@ -173,7 +173,7 @@ internal inline void DrawParticleSystem(particle_system *System, render_group *R
             
             
             v3 Pos = Particle->P + ToV3(Origin, 0);
-            PushBitmap(RenderGroup, Pos, Bitmap, 0.8f, Rect2(0, 0, RenderGroup->ScreenDim.X, RenderGroup->ScreenDim.Y), Color);
+            PushBitmap(RenderGroup, Pos, Bitmap, 0.8f, Rect2(0, 0, RenderGroup->ScreenDim.X, RenderGroup->ScreenDim.Y), Pos.Z, Color);
         }
         System->Set.LifeSpan -= dt;
         if(System->Set.LifeSpan <= 0.0f) {

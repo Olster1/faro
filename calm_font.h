@@ -290,7 +290,7 @@ TextToOutput(render_group *Group, font *Font, char *String, r32 XCursor, r32 YCu
         if(Options->DisplayText) {
             bitmap *FontGlyphBitmap = GetFontGlyphBitmap(Font, CheesePoint);
             if(FontGlyphBitmap) {
-                PushBitmapScale(Group, V3(XCursor, YCursor, Options->ZDepth),FontGlyphBitmap, 1.0f, Transform(&Group->Transform, Bounds), Color);
+                PushBitmapScale(Group, V3(XCursor, YCursor, Options->ZDepth),FontGlyphBitmap, 1.0f, Transform(&Group->Transform, Bounds), Options->ZDepth, Color);
             }
         }
         LastCodePoint = CheesePoint;                

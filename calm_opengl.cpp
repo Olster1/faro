@@ -154,6 +154,9 @@ global_variable u32 TextureHandleIndex = 0;
 
 void OpenGlRenderToOutput(render_group *Group, b32 draw) {
     if(draw) { // NOTE(Oliver): For Debug purposes
+        
+        SortRenderGroup(Group);
+        
         glViewport(0, 0, (s32)Group->ScreenDim.X, (s32)Group->ScreenDim.Y);
         glEnable(GL_TEXTURE_2D);
         glEnable(GL_BLEND);
@@ -169,43 +172,38 @@ void OpenGlRenderToOutput(render_group *Group, b32 draw) {
         
         u8 *Base = (u8 *)Group->Arena.Base;
         u8 *At = Base;
-        
+        render_element *Elms = (render_element *)Group->Arena.Base;
         rect2 BufferRect = Rect2(0, 0, (r32)Width, (r32)Height);
-        while((s32)(At - Base) < Group->Arena.CurrentSize) {
+        //while((s32)(At - Base) < Group->Arena.CurrentSize) {
+        for(u32 i = 0; i < Group->ElmCount; ++i) {
+            
+            render_element *Info = Elms + Group->SortedIndexes[i];
             
             glMatrixMode(GL_TEXTURE);
             glLoadIdentity();
             glMatrixMode(GL_MODELVIEW); 
             glLoadIdentity();
-            /*
-            glMatrixMode(GL_PROJECTION); 
             
-            r32 a = Group->Transform.Rotation.X*SafeRatio1(2.0f, (r32)Width); 
-            r32 b = Group->Transform.Rotation.Y*SafeRatio1(2.0f, (r32)Height);
+            glMatrixMode(GL_PROJECTION); 
             r32 ProjMat[] = {
-                a,  0,  0,  0,
-                0,  b,  0,  0,
+                1,  0,  Info->ZDepth,
+                0,  1,  Info->ZDepth, 
                 0,  0,  1,  0,
-                -1, -1, 0,  1
+                0, 0, 0,  1
             };
             
             glLoadMatrixf(ProjMat);
-            */
             
-            render_element_header *Header = (render_element_header *)At;
-            switch(Header->Type) {
+            switch(Info->Type) {
                 case render_clear: {
-                    render_element_clear *Info = (render_element_clear *)(Header + 1);
                     
                     glDisable(GL_TEXTURE_2D);
                     glClearColor(Info->Color.R, Info->Color.G, Info->Color.B, 0);
                     glClear(GL_COLOR_BUFFER_BIT);
                     glEnable(GL_TEXTURE_2D);
                     
-                    At += sizeof(render_element_header) + sizeof(render_element_clear);
                 } break;
                 case render_bitmap: {
-                    render_element_bitmap *Info = (render_element_bitmap *)(Header + 1);
                     
                     bitmap *Bitmap = Info->Bitmap;
                     
@@ -229,17 +227,11 @@ void OpenGlRenderToOutput(render_group *Group, b32 draw) {
                         
                     }
                     
-                    /*
-                    v2 MinP = Info->Pos;
-                    v2 MaxP = MinP + Info->Dim; 
-                    */
                     rect2 Dim = Info->Dim;
                     OpenGlDrawRectangle(Dim.Min, Dim.Max, Info->Color);
                     
-                    At += sizeof(render_element_header) + sizeof(render_element_bitmap);
                 } break;
                 case render_rect: {
-                    render_element_rect *Info = (render_element_rect *)(Header + 1);
                     
                     v2 MinP = Info->Dim.Min;
                     v2 MaxP = MinP + V2(Info->Dim.MaxX - Info->Dim.MinX, Info->Dim.MaxY - Info->Dim.MinY);
@@ -247,12 +239,9 @@ void OpenGlRenderToOutput(render_group *Group, b32 draw) {
                     glDisable(GL_TEXTURE_2D);
                     OpenGlDrawRectangle(MinP, MaxP, Info->Color);
                     glEnable(GL_TEXTURE_2D);
-                    //FillRectangle(Group->Buffer, Info->Dim, Info->Color);
                     
-                    At += sizeof(render_element_header) + sizeof(render_element_rect);
                 } break;
                 case render_rect_outline: {
-                    render_element_rect_outline *Info = (render_element_rect_outline *)(Header + 1);
                     
                     v2 MinP = Info->Dim.Min;
                     v2 MaxP = MinP + V2(Info->Dim.MaxX - Info->Dim.MinX, Info->Dim.MaxY - Info->Dim.MinY);
@@ -261,9 +250,6 @@ void OpenGlRenderToOutput(render_group *Group, b32 draw) {
                     OpenGlDrawRectangleOutline(MinP, MaxP, Info->Color);
                     glEnable(GL_TEXTURE_2D);
                     
-                    //DrawRectangle(Group->Buffer, Info->Dim, Info->Color);
-                    
-                    At += sizeof(render_element_header) + sizeof(render_element_rect_outline);
                 } break;
                 default: {
                     InvalidCodePath;

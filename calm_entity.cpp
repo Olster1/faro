@@ -382,9 +382,9 @@ UpdateEntityPositionWithImpulse(game_state *GameState, entity *Entity, r32 dt, v
                 }
                 
                 v2 VelRel = Entity->Velocity - HitEntity->Velocity;
-                r32 ReboundCoefficient = 1.0f;
+                r32 ReboundCoefficient = HitEntity->ReboundCoefficient;
                 
-                r32 Weight = 100.0f;
+                //r32 Weight = 100.0f;
                 
                 r32 K = Inner(SurfaceNormal, (1 + ReboundCoefficient) * VelRel) /
                     Inner((Entity->InverseWeight + HitEntity->InverseWeight)* SurfaceNormal, SurfaceNormal);
@@ -445,6 +445,9 @@ InitEntity(game_state *GameState, v2 Pos, v2 Dim, entity_type Type, b32 Collides
     Entity->TriggerAction = false;
     Entity->LifeSpan = 10.0f;
     Entity->InverseWeight = 1.0f / 5.0f; //5kg
+    Entity->AnimateSide = 1.0f;
+    Entity->AnimateTimer.Period = 1.0f;
+    
     
     //Entity->LastMoves;;
     Entity->LastMoveAt = 0;

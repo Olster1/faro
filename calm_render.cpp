@@ -224,11 +224,43 @@ CreateNewBitmap(memory_arena *Arena, u32 Width, u32 Height, b32 Clear)
     }
     
     return Result;
-    
-    
-    
 }
 
+void SortRenderGroup(render_group *Group) {
+    u32 *Indexes = Group->SortedIndexes = PushArray(&Group->Arena, u32, Group->ElmCount);
+    
+    for(u32 i = 0; i < Group->ElmCount; ++i) {
+        Indexes[i] = i;
+    }
+    
+    render_element *Elms = (render_element *)Group->Arena.Base;
+    
+    
+    u32 LastIndex = 0;
+    b32 Sorted = false;
+    while(!Sorted) {
+        Sorted = true;
+        r32 LastSortKey = Elms[Indexes[0]].SortKey;
+        for(u32 i = 0; i < Group->ElmCount; ++i) {
+            render_element *Elm = Elms + Indexes[i];
+            if(Elm->SortKey < LastSortKey) {
+                Assert(i);
+                Indexes[i - 1] = Indexes[i];
+                Indexes[i] = LastIndex;
+                Sorted = false;
+            }
+            
+            LastIndex = Indexes[i];
+            LastSortKey = Elm->SortKey;
+        }
+    }
+};
+
+internal inline r32 GetSortKey(render_group *Group, v3 Pos) {
+    r32 InvLengthSqr = 1.0f / LengthSqr(Group->ScreenDim);
+    r32 Result = Pos.Z + InvLengthSqr*(LengthSqr(Group->ScreenDim - Pos.XY));
+    return Result;
+}
 
 internal void
 DrawBitmap(bitmap *Buffer, bitmap *Bitmap, s32 XOrigin_, s32 YOrigin_, rect2 Bounds, v4 Color = V4(1, 1, 1, 1))
@@ -476,23 +508,25 @@ inline v2 InverseTransform(transform *Transform, v2 Pos) {
     return Result;
 } 
 
+inline render_element *PushRenderElm(render_group *Group, render_element_type Type) {
+    render_element *Elm = (render_element *)PushSize(&Group->Arena, sizeof(render_element));
+    Elm->Type = Type;
+    Group->ElmCount++;
+    return Elm;
+}
+
 void PushClear(render_group *Group, v4 Color) {
-    render_element_header *Header = (render_element_header *)PushSize(&Group->Arena, sizeof(render_element_clear) + sizeof(render_element_header));
-    
-    Header->Type = render_clear;
-    render_element_clear *Info = (render_element_clear *)(Header + 1);
-    Info->Color = Color;
+    render_element *Elm = PushRenderElm(Group, render_clear);
+    Elm->Color = Color;
 }
 
 void PushRectOutline(render_group *Group, rect2 Dim, r32 ZDepth, v4 Color = V4(0, 0, 0, 1)) {
-    render_element_header *Header = (render_element_header *)PushSize(&Group->Arena, sizeof(render_element_rect_outline) + sizeof(render_element_header));
+    render_element *Elm = PushRenderElm(Group, render_rect_outline);
     
-    Header->Type = render_rect_outline;
-    render_element_rect_outline *Info = (render_element_rect_outline *)(Header + 1);
-    
-    Info->ZDepth = ZDepth;
-    Info->Dim = Transform(&Group->Transform, Dim);
-    Info->Color = Color;
+    Elm->ZDepth = ZDepth;
+    Elm->Dim = Transform(&Group->Transform, Dim);
+    Elm->Color = Color;
+    Elm->SortKey = ZDepth;
 }
 inline void PushRectCenterOutline(render_group *Group, rect2 Dim, r32 ZDepth, v4 Color = V4(0, 0, 0, 1)) {
     
@@ -502,12 +536,9 @@ inline void PushRectCenterOutline(render_group *Group, rect2 Dim, r32 ZDepth, v4
     
 }
 
-void PushBitmap(render_group *Group, v3 Pos, bitmap *Bitmap, r32 WidthInWorldSpace,  rect2 ClipRect, v4 Color = V4(1, 1, 1, 1), r32 Angle = 0.0f, r32 SkewFactor = 0.0f, v2 ScaleFactor = V2(1, 1)) {
+void PushBitmap(render_group *Group, v3 Pos, bitmap *Bitmap, r32 WidthInWorldSpace,  rect2 ClipRect, r32 SortKey, v4 Color = V4(1, 1, 1, 1), r32 Angle = 0.0f, r32 SkewFactor = 0.0f, v2 ScaleFactor = V2(1, 1)) {
     
-    render_element_header *Header = (render_element_header *)PushSize(&Group->Arena, sizeof(render_element_bitmap) + sizeof(render_element_header));
-    
-    Header->Type = render_bitmap;
-    render_element_bitmap *Info = (render_element_bitmap *)(Header + 1);
+    render_element *Info = PushRenderElm(Group, render_bitmap);
     
     
     Info->Bitmap = Bitmap;
@@ -523,20 +554,18 @@ void PushBitmap(render_group *Group, v3 Pos, bitmap *Bitmap, r32 WidthInWorldSpa
     Info->Dim = Rect2MinMax(-Offset, Dim - Offset);
     Info->Pos = Transform(&Group->Transform, Pos.XY);
     Info->ZDepth = Pos.Z;
+    Info->SortKey = GetSortKey(Group, ToV3(Info->Pos, Pos.Z));
 }
 
-
-void PushBitmapScale(render_group *Group, v3 Pos, bitmap *Bitmap, r32 Scale,  rect2 ClipRect, v4 Color = V4(1, 1, 1, 1)) {
+void PushBitmapScale(render_group *Group, v3 Pos, bitmap *Bitmap, r32 Scale,  rect2 ClipRect,r32 SortKey,  v4 Color = V4(1, 1, 1, 1)) {
     
-    PushBitmap(Group, Pos, Bitmap, Scale*Bitmap->Width, ClipRect, Color);
+    PushBitmap(Group, Pos, Bitmap, Scale*Bitmap->Width, ClipRect, SortKey, Color);
 }
+
 void PushRect(render_group *Group, rect2 Dim, r32 ZDepth, v4 Color) {
-    render_element_header *Header = (render_element_header *)PushSize(&Group->Arena, sizeof(render_element_rect) + sizeof(render_element_header));
+    render_element *Info = PushRenderElm(Group, render_rect);
     
-    Header->Type = render_rect;
-    render_element_rect *Info = (render_element_rect *)(Header + 1);
-    
-    Info->ZDepth = ZDepth;
+    Info->SortKey = Info->ZDepth = ZDepth;
     Info->Dim = Transform(&Group->Transform, Dim);
     Info->Color = Color;
 }
@@ -556,6 +585,7 @@ internal void InitRenderGroup(render_group *Group, bitmap *Buffer,memory_arena *
     Group->Transform.Scale = Scale; 
     Group->Transform.Offset = Offset;
     Group->Transform.Rotation = Rotation;
+    Group->ElmCount = 0;
     Group->IsInitialized = true;
 }
 
